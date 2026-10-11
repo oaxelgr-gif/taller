@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% import '_macros.html' as m with context %}
+{% block title %}Mis cortes{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>Mis cortes de comisiones</h1><p class="sub">Historial de tus pagos semanales.</p></div></div>
+<section class="glass panel p-2 p-md-3">
+  {% if cortes %}
+  <div class="table-wrap">
+    <table class="table table-hover table-cards">
+      <thead><tr><th>Folio</th><th>Periodo</th><th class="text-end">Reparaciones</th><th class="text-end">%</th><th class="text-end">Comisión</th><th>Pago</th><th></th></tr></thead>
+      <tbody>
+      {% for c in cortes %}
+        <tr>
+          <td data-label="Folio"><a class="fila-link" href="{{ url_for('mecanico.detalle_corte', id_corte=c.id_corte) }}">{{ c.folio }}</a></td>
+          <td data-label="Periodo">{{ c.fecha_inicio.strftime('%d/%m/%Y') }} – {{ c.fecha_fin.strftime('%d/%m/%Y') }}<span class="sub">{{ c.cantidad_ordenes }} órdenes</span></td>
+          <td data-label="Reparaciones" class="text-end money">{{ c.total_reparaciones_monto|moneda }}</td>
+          <td data-label="%" class="text-end">{{ c.porcentaje_aplicado|porcentaje }}</td>
+          <td data-label="Comisión" class="text-end money fw-bold">{{ c.monto_comision_pagar|moneda }}</td>
+          <td data-label="Pago"><span class="estado estado-{{ 'pagado' if c.estatus_pago == 'Pagado' else 'pendiente' }}">{{ c.estatus_pago }}</span></td>
+          <td class="text-end acciones">
+            <a class="btn btn-glass btn-sm" href="{{ url_for('mecanico.detalle_corte', id_corte=c.id_corte) }}"><i class="bi bi-eye"></i> Ver</a>
+            <a class="btn btn-glass btn-sm btn-icon" href="{{ url_for('mecanico.pdf_corte', id_corte=c.id_corte) }}" title="Descargar PDF" aria-label="Descargar PDF"><i class="bi bi-file-earmark-pdf"></i></a>
+          </td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+    {% call m.vacio('cash-coin', 'Sin cortes todavía', 'Cuando el administrador cierre tu primer corte semanal aparecerá aquí.') %}{% endcall %}
+  {% endif %}
+</section>
+{% endblock %}

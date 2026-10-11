@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% import '_macros.html' as m with context %}
+{% block title %}Mi panel{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><h1>Hola, {{ current_user.nombre_completo.split()[0] }}</h1>
+    <p class="sub">Semana del {{ k.lunes.strftime('%d/%m') }} al {{ k.domingo.strftime('%d/%m/%Y') }}.</p></div>
+  <div class="page-actions"><a class="btn btn-primary" href="{{ url_for('ordenes.nueva') }}"><i class="bi bi-plus-lg"></i> Nueva orden</a></div>
+</div>
+
+<div class="row g-3 mb-3">
+  <div class="col-6 col-xl-3"><div class="glass stat glass-hover c-cyan"><div class="ico"><i class="bi bi-wrench-adjustable"></i></div>
+    <div class="label">Mis trabajos activos</div><div class="value">{{ k.activos }}</div><div class="hint">Pendientes y en proceso</div></div></div>
+  <div class="col-6 col-xl-3"><div class="glass stat glass-hover c-green"><div class="ico"><i class="bi bi-check2-circle"></i></div>
+    <div class="label">Concluidos esta semana</div><div class="value">{{ k.concluidas_semana }}</div><div class="hint">Completados o entregados</div></div></div>
+  <div class="col-6 col-xl-3"><div class="glass stat glass-hover c-blue"><div class="ico"><i class="bi bi-cash-stack"></i></div>
+    <div class="label">Ingresos generados (semana)</div><div class="value">{{ k.ingresos_semana|moneda }}</div><div class="hint">Total de tus órdenes concluidas</div></div></div>
+  <div class="col-6 col-xl-3"><div class="glass stat glass-hover c-amber"><div class="ico"><i class="bi bi-piggy-bank"></i></div>
+    <div class="label">Comisión estimada (semana)</div><div class="value">{{ k.comision_semana|moneda }}</div>
+    <div class="hint">{{ k.porcentaje|porcentaje }} · pendiente total {{ k.comision_pendiente_total|moneda }}</div></div></div>
+</div>
+
+<div class="row g-3">
+  <div class="col-xl-7">
+    <section class="glass panel h-100">
+      <h2 class="panel-title"><i class="bi bi-lightning-charge"></i> Trabajos activos <span class="extra"><a href="{{ url_for('ordenes.index', vista='kanban') }}">Ver tablero</a></span></h2>
+      {% for o in activas %}
+        {% set siguiente = {'Pendiente': 'En Proceso', 'En Proceso': 'Completado'}.get(o.estado) %}
+        <div class="resultado mb-2">
+          <div class="d-flex justify-content-between align-items-start gap-2 flex-wrap">
+            <div><a class="cli" href="{{ url_for('ordenes.detalle', id_orden=o.id_orden) }}">{{ o.folio }}</a> {{ m.estado(o.estado) }}
+              <div>{{ o.vehiculo.descripcion }} <span class="badge-soft">{{ o.vehiculo.placas }}</span></div>
+              <div class="text-muted small">{{ o.vehiculo.cliente.nombre_completo }} · ingreso {{ o.fecha_ingreso|fechahora }}</div></div>
+            <div class="text-end"><div class="money fw-bold">{{ o.total_costo|moneda }}</div>
+              {% if siguiente and siguiente in permitidos(o) %}<div class="mt-1">{{ m.boton_estado(o, siguiente) }}</div>{% endif %}</div>
+          </div>
+        </div>
+      {% else %}
+        {% call m.vacio('emoji-smile', 'Sin trabajos pendientes', 'No tienes órdenes activas. Registra el ingreso de un nuevo vehículo cuando llegue.') %}
+          <a class="btn btn-primary" href="{{ url_for('ordenes.nueva') }}"><i class="bi bi-plus-lg"></i> Nueva orden</a>{% endcall %}
+      {% endfor %}
+    </section>
+  </div>
+  <div class="col-xl-5">
+    <section class="glass panel mb-3">
+      <h2 class="panel-title"><i class="bi bi-clock-history"></i> Últimos concluidos <span class="extra"><a href="{{ url_for('ordenes.index', estado='Completado') }}">Historial</a></span></h2>
+      {% for o in recientes %}
+        <div class="rank-item">
+          <div class="flex-fill"><a class="fila-link fw-semibold" href="{{ url_for('ordenes.detalle', id_orden=o.id_orden) }}">{{ o.folio }}</a>
+            <div class="small text-muted">{{ o.vehiculo.descripcion }} · {{ o.fecha_finalizacion|fecha }}</div></div>
+          <div class="text-end"><div class="money fw-bold">{{ o.total_costo|moneda }}</div>{% if o.liquidado_en_corte %}<span class="small text-faint"><i class="bi bi-lock-fill"></i> Liquidada</span>{% endif %}</div>
+        </div>
+      {% else %}<p class="text-muted mb-0">Aún no has concluido órdenes.</p>{% endfor %}
+    </section>
+    <section class="glass panel">
+      <h2 class="panel-title"><i class="bi bi-cash-coin"></i> Mis últimos cortes <span class="extra"><a href="{{ url_for('mecanico.cortes') }}">Ver todos</a></span></h2>
+      {% for c in ultimos_cortes %}
+        <a class="rank-item text-reset" href="{{ url_for('mecanico.detalle_corte', id_corte=c.id_corte) }}">
+          <div class="flex-fill"><div class="fw-semibold">{{ c.folio }}</div><div class="small text-muted">{{ c.fecha_inicio.strftime('%d/%m') }} – {{ c.fecha_fin.strftime('%d/%m/%Y') }}</div></div>
+          <div class="text-end"><div class="money fw-bold">{{ c.monto_comision_pagar|moneda }}</div><span class="estado estado-{{ 'pagado' if c.estatus_pago == 'Pagado' else 'pendiente' }}">{{ c.estatus_pago }}</span></div>
+        </a>
+      {% else %}<p class="text-muted mb-0">Todavía no tienes cortes cerrados.</p>{% endfor %}
+    </section>
+  </div>
+</div>
+{% endblock %}

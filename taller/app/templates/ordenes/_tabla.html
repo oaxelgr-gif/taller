@@ -1,0 +1,36 @@
+{% import '_macros.html' as m with context %}
+{% if pag.items %}
+<div class="table-wrap">
+  <table class="table table-hover table-cards">
+    <thead><tr>
+      <th>Folio</th><th>Cliente y vehículo</th>{% if current_user.es_admin %}<th>Mecánico</th>{% endif %}
+      <th>Estado</th><th class="text-end">Total</th><th></th>
+    </tr></thead>
+    <tbody>
+    {% for o in pag.items %}
+      {% set siguiente = {'Pendiente': 'En Proceso', 'En Proceso': 'Completado', 'Completado': 'Entregado'}.get(o.estado) %}
+      <tr>
+        <td data-label="Folio"><a class="fila-link" href="{{ url_for('ordenes.detalle', id_orden=o.id_orden) }}">{{ o.folio }}</a><span class="sub">{{ o.fecha_ingreso|fechahora }}</span></td>
+        <td data-label="Vehículo"><b>{{ o.vehiculo.descripcion }}</b> <span class="badge-soft ms-1">{{ o.vehiculo.placas }}</span><span class="sub">{{ o.vehiculo.cliente.nombre_completo }}</span></td>
+        {% if current_user.es_admin %}<td data-label="Mecánico">{{ o.mecanico.nombre_completo }}</td>{% endif %}
+        <td data-label="Estado">{{ m.estado(o.estado) }}{% if o.liquidado_en_corte %}<span class="sub"><i class="bi bi-lock-fill"></i> Liquidada</span>{% endif %}</td>
+        <td data-label="Total" class="text-end money">{{ o.total_costo|moneda }}</td>
+        <td class="text-end acciones">
+          {% if siguiente and siguiente in permitidos(o) %}{{ m.boton_estado(o, siguiente) }}{% endif %}
+          <a class="btn btn-glass btn-sm btn-icon" href="{{ url_for('ordenes.detalle', id_orden=o.id_orden) }}" title="Ver detalle" aria-label="Ver detalle"><i class="bi bi-eye"></i></a>
+        </td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{{ m.paginacion(pag) }}
+{% else %}
+  {% if args.get('q') or args.get('estado') or args.get('mecanico') or args.get('desde') or args.get('hasta') %}
+    {% call m.vacio('funnel', 'Sin resultados', 'Ninguna orden coincide con los filtros aplicados. Prueba quitando alguno.') %}{% endcall %}
+  {% else %}
+    {% call m.vacio('clipboard2-check', 'Todavía no hay órdenes', 'Registra el ingreso de un vehículo para comenzar el seguimiento del trabajo.') %}
+      <a class="btn btn-primary" href="{{ url_for('ordenes.nueva') }}"><i class="bi bi-plus-lg"></i> Nueva orden</a>
+    {% endcall %}
+  {% endif %}
+{% endif %}

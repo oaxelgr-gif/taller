@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% import '_macros.html' as m with context %}
+{% block title %}Vehículos{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><h1>Vehículos</h1><p class="sub">Todos los vehículos registrados. Para agregar uno nuevo, entra al cliente correspondiente.</p></div>
+  <div class="page-actions">
+    <a class="btn btn-primary" href="{{ url_for('ordenes.nueva') }}"><i class="bi bi-clipboard2-plus"></i> Nueva orden</a>
+  </div>
+</div>
+
+<form class="glass filtros" data-live data-target="#tabla" action="{{ url_for('clientes.vehiculos') }}" role="search">
+  <div class="search-box">
+    <i class="bi bi-search"></i>
+    <input type="search" class="form-control" name="q" value="{{ q }}" placeholder="Buscar por placas, marca, modelo, VIN o cliente…" autocomplete="off" aria-label="Buscar vehículos">
+    <span class="spinner"></span>
+  </div>
+</form>
+
+<div class="glass panel p-2 p-md-3" id="tabla">{% include 'clientes/_tabla_vehiculos.html' %}</div>
+
+{% include 'clientes/_modal_vehiculo.html' %}
+{% endblock %}

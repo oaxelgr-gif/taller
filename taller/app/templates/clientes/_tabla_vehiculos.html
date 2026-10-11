@@ -1,0 +1,40 @@
+{% import '_macros.html' as m with context %}
+{% if pag.items %}
+<div class="table-wrap">
+  <table class="table table-hover table-cards">
+    <thead><tr><th>Placas</th><th>Vehículo</th><th>Color</th><th>Cliente</th><th>VIN</th><th></th></tr></thead>
+    <tbody>
+    {% for v in pag.items %}
+      <tr>
+        <td data-label="Placas"><a class="badge-soft fw-bold text-decoration-none" href="{{ url_for('clientes.detalle_vehiculo', id_vehiculo=v.id_vehiculo) }}">{{ v.placas }}</a></td>
+        <td data-label="Vehículo"><a class="text-reset text-decoration-none" href="{{ url_for('clientes.detalle_vehiculo', id_vehiculo=v.id_vehiculo) }}"><b>{{ v.marca }} {{ v.modelo }}</b><span class="sub">{{ v.anio }}</span></a></td>
+        <td data-label="Color">{{ v.color or '—' }}</td>
+        <td data-label="Cliente"><a class="fila-link" href="{{ url_for('clientes.detalle', id_cliente=v.id_cliente) }}">{{ v.cliente.nombre_completo }}</a></td>
+        <td data-label="VIN" class="text-muted">{{ v.numero_serie_vin or '—' }}</td>
+        <td class="text-end acciones">
+          <a class="btn btn-glass btn-sm" href="{{ url_for('clientes.detalle_vehiculo', id_vehiculo=v.id_vehiculo) }}" title="Fotos y detalles"><i class="bi bi-camera"></i> Inspección</a>
+          <a class="btn btn-glass btn-sm" href="{{ url_for('ordenes.nueva', vehiculo=v.id_vehiculo) }}" title="Nueva orden"><i class="bi bi-clipboard2-plus"></i> Orden</a>
+          {% if current_user.es_admin %}
+          <button type="button" class="btn btn-glass btn-sm btn-icon" title="Editar" aria-label="Editar vehículo" data-bs-toggle="modal" data-bs-target="#modalVehiculo"
+            data-edit='{{ {"id_vehiculo": v.id_vehiculo, "marca": v.marca, "modelo": v.modelo, "anio": v.anio, "placas": v.placas, "numero_serie_vin": v.numero_serie_vin or "", "color": v.color or ""}|tojson }}'><i class="bi bi-pencil"></i></button>
+          <form method="post" class="d-inline" action="{{ url_for('clientes.eliminar_vehiculo', id_vehiculo=v.id_vehiculo) }}" data-ajax data-on-success="reload" data-peligro
+                data-confirm="¿Eliminar el vehículo {{ v.placas }}?" data-confirm-boton="Eliminar" data-confirm-titulo="Eliminar vehículo">
+            {{ m.csrf() }}<button class="btn btn-outline-danger btn-sm btn-icon" title="Eliminar" aria-label="Eliminar vehículo"><i class="bi bi-trash"></i></button>
+          </form>
+          {% endif %}
+        </td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{{ m.paginacion(pag) }}
+{% else %}
+  {% if q %}
+    {% call m.vacio('search', 'Sin resultados', 'No hay vehículos que coincidan con «' ~ q ~ '».') %}{% endcall %}
+  {% else %}
+    {% call m.vacio('car-front', 'Aún no hay vehículos', 'Los vehículos se registran desde un cliente o al crear una nueva orden.') %}
+      <a class="btn btn-primary" href="{{ url_for('ordenes.nueva') }}"><i class="bi bi-clipboard2-plus"></i> Nueva orden</a>
+    {% endcall %}
+  {% endif %}
+{% endif %}

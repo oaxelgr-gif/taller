@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+{% import '_macros.html' as m with context %}
+{% block title %}Dashboard{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><h1>Dashboard</h1><p class="sub">Indicadores de {{ nombre_mes }} {{ anio }}.</p></div>
+  <form class="page-actions" method="get" action="{{ url_for('admin.dashboard') }}">
+    <select class="form-select" name="mes" aria-label="Mes" onchange="this.form.submit()" style="width:auto">
+      {% for n in meses %}<option value="{{ loop.index }}" {{ 'selected' if loop.index == mes }}>{{ n }}</option>{% endfor %}
+    </select>
+    <select class="form-select" name="anio" aria-label="Año" onchange="this.form.submit()" style="width:auto">
+      {% for a in anios %}<option value="{{ a }}" {{ 'selected' if a == anio }}>{{ a }}</option>{% endfor %}
+    </select>
+  </form>
+</div>
+
+<div class="row g-3 mb-3">
+  <div class="col-6 col-xl-3"><div class="glass stat glass-hover c-blue"><div class="ico"><i class="bi bi-cash-stack"></i></div>
+    <div class="label">Total ingresado</div><div class="value">{{ k.ingresos|moneda }}</div><div class="hint">Órdenes completadas y entregadas</div></div></div>
+  <div class="col-6 col-xl-3"><div class="glass stat glass-hover c-green"><div class="ico"><i class="bi bi-check2-circle"></i></div>
+    <div class="label">Reparaciones concluidas</div><div class="value">{{ k.concluidas }}</div><div class="hint">{{ k.activas }} en curso ahora</div></div></div>
+  <div class="col-6 col-xl-3"><div class="glass stat glass-hover c-violet"><div class="ico"><i class="bi bi-graph-up-arrow"></i></div>
+    <div class="label">Ganancia neta del taller</div><div class="value">{{ k.ganancia_neta|moneda }}</div><div class="hint">Ingresos − comisiones ({{ k.comisiones|moneda }})</div></div></div>
+  <div class="col-6 col-xl-3"><div class="glass stat glass-hover c-amber"><div class="ico"><i class="bi bi-trophy"></i></div>
+    <div class="label">Mecánico más productivo</div>
+    {% if k.top %}<div class="value" style="font-size:1.25rem">{{ k.top[0] }}</div><div class="hint">{{ k.top[2]|moneda }} · {{ k.top[1] }} órdenes</div>
+    {% else %}<div class="value" style="font-size:1.25rem">—</div><div class="hint">Sin órdenes concluidas este mes</div>{% endif %}</div></div>
+</div>
+
+<div class="row g-3 mb-3">
+  <div class="col-xl-8">
+    <section class="glass panel h-100">
+      <h2 class="panel-title"><i class="bi bi-bar-chart-line"></i> Ingresos de los últimos 14 días</h2>
+      <div class="chart-bars" data-chart-bars data-serie='{{ k.serie|tojson }}'></div>
+    </section>
+  </div>
+  <div class="col-xl-4">
+    <section class="glass panel h-100">
+      <h2 class="panel-title"><i class="bi bi-diagram-3"></i> Órdenes por estado</h2>
+      {% set total_ord = k.por_estado.values()|sum %}
+      {% for e in ESTADOS %}
+        {% set n = k.por_estado.get(e, 0) %}
+        <div class="estado-fila">
+          <div style="width:118px">{{ m.estado(e) }}</div>
+          <div class="progreso"><i data-w="{{ (n / total_ord * 100)|round(1) if total_ord else 0 }}" style="width:0"></i></div>
+          <div class="n">{{ n }}</div>
+        </div>
+      {% endfor %}
+      <hr class="divider">
+      <div class="d-flex justify-content-between small text-muted"><span>Comisiones por pagar</span><b class="money text-warn">{{ k.comisiones_por_pagar|moneda }}</b></div>
+      <div class="d-flex justify-content-between small text-muted mt-1"><span>Órdenes pendientes de liquidar</span><b>{{ k.pendiente_liquidar }}</b></div>
+      <a class="btn btn-glass w-100 mt-3" href="{{ url_for('admin.comisiones') }}"><i class="bi bi-cash-coin"></i> Ir a comisiones</a>
+    </section>
+  </div>
+</div>
+
+<div class="row g-3">
+  <div class="col-xl-5">
+    <section class="glass panel h-100">
+      <h2 class="panel-title"><i class="bi bi-award"></i> Productividad del mes</h2>
+      {% for r in k.ranking %}
+      <div class="rank-item"><div class="rank-pos">{{ loop.index }}</div>
+        <div class="flex-fill"><div class="fw-semibold">{{ r[0] }}</div><div class="small text-muted">{{ r[1] }} {{ 'orden' if r[1] == 1 else 'órdenes' }}</div></div>
+        <div class="money fw-bold">{{ r[2]|moneda }}</div></div>
+      {% else %}
+        {% call m.vacio('person-workspace', 'Sin actividad este mes', 'Cuando los mecánicos concluyan órdenes verás su ranking aquí.') %}{% endcall %}
+      {% endfor %}
+    </section>
+  </div>
+  <div class="col-xl-7">
+    <section class="glass panel h-100">
+      <h2 class="panel-title"><i class="bi bi-clock-history"></i> Órdenes recientes <span class="extra"><a href="{{ url_for('ordenes.index') }}">Ver todas</a></span></h2>
+      {% if k.recientes %}
+      <div class="table-wrap"><table class="table table-hover table-cards">
+        <thead><tr><th>Folio</th><th>Vehículo</th><th>Mecánico</th><th>Estado</th><th class="text-end">Total</th></tr></thead>
+        <tbody>{% for o in k.recientes %}
+          <tr><td data-label="Folio"><a class="fila-link" href="{{ url_for('ordenes.detalle', id_orden=o.id_orden) }}">{{ o.folio }}</a></td>
+            <td data-label="Vehículo">{{ o.vehiculo.descripcion }}<span class="sub">{{ o.vehiculo.placas }}</span></td>
+            <td data-label="Mecánico">{{ o.mecanico.nombre_completo }}</td>
+            <td data-label="Estado">{{ m.estado(o.estado) }}</td>
+            <td data-label="Total" class="text-end money">{{ o.total_costo|moneda }}</td></tr>
+        {% endfor %}</tbody></table></div>
+      {% else %}
+        {% call m.vacio('clipboard2', 'Aún no hay órdenes', 'Registra la primera orden de trabajo para ver la actividad aquí.') %}
+          <a class="btn btn-primary" href="{{ url_for('ordenes.nueva') }}"><i class="bi bi-plus-lg"></i> Nueva orden</a>{% endcall %}
+      {% endif %}
+    </section>
+  </div>
+</div>
+{% endblock %}

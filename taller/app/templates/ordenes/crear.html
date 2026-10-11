@@ -1,0 +1,177 @@
+{% extends "base.html" %}
+{% import '_macros.html' as m with context %}
+{% block title %}Nueva orden de trabajo{% endblock %}
+{% block content %}
+{% set catalogo = [] %}
+{% for s in servicios %}{% set _ = catalogo.append({'id': s.id_servicio, 'nombre': s.nombre, 'costo': s.costo_base|string}) %}{% endfor %}
+{% set pre = none %}
+{% if vehiculo_preseleccionado %}
+  {% set pre = {'id': vehiculo_preseleccionado.id_vehiculo, 'descripcion': vehiculo_preseleccionado.descripcion, 'placas': vehiculo_preseleccionado.placas,
+                'cliente': vehiculo_preseleccionado.cliente.nombre_completo, 'telefono': vehiculo_preseleccionado.cliente.telefono} %}
+{% endif %}
+
+<div class="page-head">
+  <div>
+    <a href="{{ url_for('ordenes.index') }}" class="text-muted small"><i class="bi bi-arrow-left"></i> Órdenes</a>
+    <h1 class="mt-1">Nueva orden de trabajo</h1>
+    <p class="sub">Registra el ingreso del vehículo, su diagnóstico y los servicios a realizar.</p>
+  </div>
+</div>
+
+<form id="form-orden" method="post" action="{{ url_for('ordenes.nueva') }}" data-ajax data-validate novalidate
+      data-buscar-url="{{ url_for('clientes.buscar') }}" data-rapido-url="{{ url_for('clientes.alta_rapida') }}"
+      data-preseleccion='{{ pre|tojson }}'>
+  {{ m.csrf() }}
+  <input type="hidden" name="id_vehiculo" id="id_vehiculo" value="{{ pre.id if pre else '' }}">
+  <script type="application/json" id="catalogo">{{ catalogo|tojson }}</script>
+
+  <div class="row g-3">
+    <div class="col-xl-8">
+
+      {# ---- 1. Cliente y vehículo ---- #}
+      <section class="glass panel mb-3">
+        <div class="paso"><span class="n">1</span><h2>Cliente y vehículo</h2></div>
+
+        <div id="bloque-busqueda">
+          <label class="form-label" for="buscar-cliente">Buscar cliente por nombre, teléfono o placas</label>
+          <div class="search-box">
+            <i class="bi bi-search"></i>
+            <input type="search" class="form-control" id="buscar-cliente" placeholder="Ej. Juan Pérez, 5512345678 o ABC-123" autocomplete="off">
+            <span class="spinner"></span>
+          </div>
+          <div class="resultados-busqueda" id="resultados" aria-live="polite"></div>
+          <div class="mt-3">
+            <button type="button" class="btn btn-glass" data-bs-toggle="modal" data-bs-target="#modalRapido" data-modo="nuevo"><i class="bi bi-person-plus"></i> Registrar cliente y vehículo nuevos</button>
+          </div>
+        </div>
+
+        <div id="seleccion" class="seleccion-ok {{ '' if pre else 'd-none' }}">
+          <i class="bi bi-check-circle-fill ico"></i>
+          <div class="flex-fill">
+            <div class="fw-bold" id="sel-vehiculo">{{ pre.descripcion ~ ' · ' ~ pre.placas if pre }}</div>
+            <div class="text-muted small" id="sel-cliente">{{ pre.cliente ~ ' · ' ~ pre.telefono if pre }}</div>
+          </div>
+          <button type="button" class="btn btn-glass btn-sm" id="cambiar-vehiculo">Cambiar</button>
+        </div>
+      </section>
+
+      {# ---- 2. Datos del ingreso ---- #}
+      <section class="glass panel mb-3">
+        <div class="paso"><span class="n">2</span><h2>Datos del ingreso</h2></div>
+        <div class="row g-3">
+          {% if current_user.es_admin %}
+          <div class="col-md-6">
+            <label class="form-label" for="id_mecanico">Mecánico responsable *</label>
+            <select class="form-select" id="id_mecanico" name="id_mecanico" required>
+              <option value="">Selecciona…</option>
+              {% for mec in mecanicos %}<option value="{{ mec.id_usuario }}">{{ mec.nombre_completo }}</option>{% endfor %}
+            </select>
+          </div>
+          {% else %}
+          <div class="col-md-6">
+            <label class="form-label">Mecánico responsable</label>
+            <input class="form-control" value="{{ current_user.nombre_completo }}" readonly>
+          </div>
+          {% endif %}
+          <div class="col-md-6">
+            <label class="form-label" for="kilometraje">Kilometraje</label>
+            <div class="input-group"><input type="number" class="form-control" id="kilometraje" name="kilometraje" min="0" max="3000000" inputmode="numeric" placeholder="Opcional"><span class="input-group-text">km</span></div>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label" for="fecha_ingreso">Fecha y hora de ingreso</label>
+            <input type="datetime-local" class="form-control" id="fecha_ingreso" name="fecha_ingreso" value="{{ ahora|inputdt }}" max="{{ ahora|inputdt }}">
+            <div class="form-text text-faint">Por defecto es ahora. Puedes elegir una fecha anterior, nunca futura.</div>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label" for="fecha_entrega_estimada">Entrega estimada</label>
+            <input type="datetime-local" class="form-control" id="fecha_entrega_estimada" name="fecha_entrega_estimada">
+          </div>
+          <div class="col-12">
+            <label class="form-label" for="diagnostico_inicial">Diagnóstico inicial *</label>
+            <textarea class="form-control" id="diagnostico_inicial" name="diagnostico_inicial" rows="3" required placeholder="Falla reportada por el cliente, ruidos, testigos encendidos, estado general…"></textarea>
+          </div>
+        </div>
+      </section>
+
+      {# ---- 3. Servicios ---- #}
+      <section class="glass panel mb-3">
+        <div class="paso"><span class="n">3</span><h2>Servicios a realizar</h2></div>
+        {% if servicios %}
+        <div class="linea-servicio linea-head"><div>Servicio</div><div class="text-end">Costo aplicado</div><div class="text-center">Cant.</div><div class="text-end">Subtotal</div><div></div></div>
+        <div id="lineas"></div>
+        <button type="button" class="btn btn-glass mt-3" id="agregar-linea"><i class="bi bi-plus-lg"></i> Agregar servicio</button>
+        <p class="text-faint small mt-3 mb-0"><i class="bi bi-info-circle"></i> Puedes ajustar el costo aplicado en casos excepcionales. También podrás agregar servicios después, antes de completar la orden.</p>
+        {% else %}
+          {% call m.vacio('tools', 'El catálogo de servicios está vacío', 'Pide a un administrador que agregue servicios al catálogo. Puedes registrar la orden y agregarlos luego.') %}{% endcall %}
+        {% endif %}
+      </section>
+    </div>
+
+    {# ---- Resumen ---- #}
+    <div class="col-xl-4">
+      <aside class="glass-strong panel" style="position: sticky; top: 16px;">
+        <h2 class="panel-title"><i class="bi bi-receipt"></i> Resumen</h2>
+        <div class="total-box mb-3"><span class="text-muted">Total estimado</span><span class="num money" id="total-orden">$0.00</span></div>
+        <ul class="list-unstyled small text-muted mb-3">
+          <li class="mb-1"><i class="bi bi-car-front me-1"></i> <span id="res-vehiculo">Sin vehículo</span></li>
+          <li><i class="bi bi-tools me-1"></i> <span id="res-servicios">0 servicios</span></li>
+        </ul>
+        <button type="submit" class="btn btn-primary w-100 mb-2"><i class="bi bi-check2-circle"></i> Registrar orden</button>
+        <a href="{{ url_for('ordenes.index') }}" class="btn btn-glass w-100">Cancelar</a>
+      </aside>
+    </div>
+  </div>
+</form>
+
+<template id="tpl-linea">
+  <div class="linea-servicio">
+    <div class="sel">
+      <select class="form-select" name="servicio_id[]" aria-label="Servicio">
+        <option value="">Selecciona un servicio…</option>
+        {% for s in servicios %}<option value="{{ s.id_servicio }}" data-costo="{{ s.costo_base }}">{{ s.nombre }} — {{ s.costo_base|moneda }}</option>{% endfor %}
+      </select>
+    </div>
+    <div><input class="form-control text-end" name="costo[]" type="number" step="0.01" min="0" inputmode="decimal" placeholder="0.00" aria-label="Costo aplicado"></div>
+    <div><input class="form-control text-center" name="cantidad[]" type="number" min="1" max="999" value="1" inputmode="numeric" aria-label="Cantidad"></div>
+    <div class="sub money">$0.00</div>
+    <button type="button" class="btn btn-ghost btn-icon" data-quitar aria-label="Quitar servicio"><i class="bi bi-x-lg"></i></button>
+  </div>
+</template>
+
+{# Modal: alta rápida de cliente + vehículo (o vehículo para cliente existente) #}
+<div class="modal fade" id="modalRapido" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+    <form class="modal-content" id="form-rapido" novalidate>
+      <input type="hidden" name="id_cliente" id="rapido-id-cliente">
+      <div class="modal-header"><h5 class="modal-title" id="rapido-titulo">Nuevo cliente y vehículo</h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button></div>
+      <div class="modal-body">
+        <div id="rapido-cliente">
+          <h6 class="text-muted text-uppercase small fw-bold mb-3">Cliente</h6>
+          <div class="mb-3"><label class="form-label" for="r-nombre">Nombre completo *</label><input class="form-control" id="r-nombre" name="nombre_completo" maxlength="120" autocomplete="off"></div>
+          <div class="row g-3 mb-4">
+            <div class="col-sm-6"><label class="form-label" for="r-tel">Teléfono *</label><input class="form-control" id="r-tel" name="telefono" type="tel" inputmode="tel" maxlength="20"></div>
+            <div class="col-sm-6"><label class="form-label" for="r-correo">Correo</label><input class="form-control" id="r-correo" name="correo" type="email" maxlength="100"></div>
+          </div>
+        </div>
+        <h6 class="text-muted text-uppercase small fw-bold mb-3">Vehículo</h6>
+        <div class="row g-3">
+          <div class="col-sm-6"><label class="form-label" for="r-marca">Marca *</label><input class="form-control" id="r-marca" name="marca" maxlength="50" list="lista-marcas-r" autocomplete="off"></div>
+          <div class="col-sm-6"><label class="form-label" for="r-modelo">Modelo *</label><input class="form-control" id="r-modelo" name="modelo" maxlength="50" autocomplete="off"></div>
+          <div class="col-sm-4"><label class="form-label" for="r-anio">Año *</label><input class="form-control" id="r-anio" name="anio" type="number" inputmode="numeric" min="1900" max="2100"></div>
+          <div class="col-sm-8"><label class="form-label" for="r-placas">Placas *</label><input class="form-control text-uppercase" id="r-placas" name="placas" maxlength="20" autocomplete="off"></div>
+          <div class="col-sm-7"><label class="form-label" for="r-vin">VIN</label><input class="form-control text-uppercase" id="r-vin" name="numero_serie_vin" maxlength="50" autocomplete="off"></div>
+          <div class="col-sm-5"><label class="form-label" for="r-color">Color</label><input class="form-control" id="r-color" name="color" maxlength="30" autocomplete="off"></div>
+        </div>
+        <datalist id="lista-marcas-r">
+          {% for marca in ['Nissan','Volkswagen','Chevrolet','Ford','Toyota','Honda','Mazda','Kia','Hyundai','Renault','SEAT','Suzuki','Mitsubishi','BMW','Mercedes-Benz','Audi','Jeep','Dodge','Peugeot','Fiat'] %}<option value="{{ marca }}">{% endfor %}
+        </datalist>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-glass" data-bs-dismiss="modal">Cancelar</button>
+        <button type="submit" class="btn btn-primary"><i class="bi bi-check2"></i> Guardar y seleccionar</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}<script src="{{ url_for('static', filename='js/ordenes.js') }}"></script>{% endblock %}

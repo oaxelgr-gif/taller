@@ -1,0 +1,298 @@
+{% extends "base.html" %}
+{% import '_macros.html' as m with context %}
+{% block title %}Orden {{ orden.folio }}{% endblock %}
+{% block content %}
+{% set cliente = orden.vehiculo.cliente %}
+
+{# ---- Encabezado solo para impresión ---- #}
+<div class="solo-impresion mb-3">
+  <h1 style="font-size:1.6rem;margin:0">{{ TALLER_NOMBRE }}</h1>
+  <div>Hoja de trabajo · <b>{{ orden.folio }}</b> · Impresa el {{ ahora|fechahora }}</div>
+  <hr>
+</div>
+
+<div class="page-head no-imprimir">
+  <div>
+    <a href="{{ url_for('ordenes.index') }}" class="text-muted small"><i class="bi bi-arrow-left"></i> Órdenes</a>
+    <h1 class="mt-1 d-flex align-items-center flex-wrap gap-2">{{ orden.folio }} <span id="estado-actual" class="d-inline-flex">{{ m.estado(orden.estado) }}</span></h1>
+    <p class="sub">{{ orden.vehiculo.descripcion }} · {{ orden.vehiculo.placas }} — {{ cliente.nombre_completo }}</p>
+  </div>
+  <div class="page-actions">
+    {% for e in permitidos %}{{ m.boton_estado(orden, e, pequeno=false) }}{% endfor %}
+    <button type="button" class="btn btn-glass" data-print><i class="bi bi-printer"></i> Imprimir hoja</button>
+    {% if current_user.es_admin and not orden.liquidado_en_corte %}
+    <form method="post" action="{{ url_for('ordenes.eliminar', id_orden=orden.id_orden) }}" data-ajax data-peligro
+          data-confirm="¿Eliminar definitivamente la orden {{ orden.folio }}? Se borrarán sus servicios e historial." data-confirm-boton="Eliminar" data-confirm-titulo="Eliminar orden">
+      {{ m.csrf() }}<button class="btn btn-outline-danger btn-icon" title="Eliminar orden" aria-label="Eliminar orden"><i class="bi bi-trash"></i></button>
+    </form>
+    {% endif %}
+  </div>
+</div>
+
+{% if orden.liquidado_en_corte %}
+<div class="alerta-liquidada no-imprimir">
+  <i class="bi bi-lock-fill fs-5"></i>
+  <div>Esta orden ya fue liquidada en un corte semanal{% if orden.corte %} (<b>{{ orden.corte.folio }}</b>){% endif %} y no puede modificarse.
+    {% if current_user.es_admin and orden.corte %}<a href="{{ url_for('admin.detalle_corte', id_corte=orden.corte.id_corte) }}" class="ms-1">Ver corte</a>{% endif %}</div>
+</div>
+{% endif %}
+
+<div class="row g-3">
+  <div class="col-xl-8">
+
+    {# ---- Servicios ---- #}
+    <section class="glass panel mb-3">
+      <h2 class="panel-title"><i class="bi bi-tools"></i> Servicios aplicados</h2>
+      {% if orden.detalles %}
+      <div class="table-wrap">
+        <table class="table table-cards">
+          <thead><tr><th>Servicio</th><th class="text-end">Costo</th><th class="text-center">Cant.</th><th class="text-end">Subtotal</th>{% if puede_editar %}<th class="no-imprimir"></th>{% endif %}</tr></thead>
+          <tbody>
+          {% for d in orden.detalles %}
+            <tr>
+              <td data-label="Servicio"><b>{{ d.servicio.nombre }}</b>{% if d.servicio.descripcion %}<span class="sub">{{ d.servicio.descripcion }}</span>{% endif %}</td>
+              {% if puede_editar %}
+              <td data-label="Costo" class="text-end">
+                <span class="solo-impresion money">{{ d.costo_aplicado|moneda }}</span>
+                <span class="no-imprimir"><input class="form-control text-end" style="max-width:140px;margin-left:auto" type="number" step="0.01" min="0" name="costo" value="{{ d.costo_aplicado }}" form="fd-{{ d.id_detalle }}" aria-label="Costo aplicado"></span>
+              </td>
+              <td data-label="Cantidad" class="text-center">
+                <span class="solo-impresion">{{ d.cantidad }}</span>
+                <span class="no-imprimir"><input class="form-control text-center" style="max-width:90px;margin:auto" type="number" min="1" max="999" name="cantidad" value="{{ d.cantidad }}" form="fd-{{ d.id_detalle }}" aria-label="Cantidad"></span>
+              </td>
+              {% else %}
+              <td data-label="Costo" class="text-end money">{{ d.costo_aplicado|moneda }}</td>
+              <td data-label="Cantidad" class="text-center">{{ d.cantidad }}</td>
+              {% endif %}
+              <td data-label="Subtotal" class="text-end money fw-bold">{{ d.subtotal|moneda }}</td>
+              {% if puede_editar %}
+              <td class="text-end acciones no-imprimir">
+                <form id="fd-{{ d.id_detalle }}" method="post" class="d-inline" data-ajax data-on-success="reload" action="{{ url_for('ordenes.actualizar_servicio', id_orden=orden.id_orden, id_detalle=d.id_detalle) }}">
+                  {{ m.csrf() }}<button class="btn btn-glass btn-sm btn-icon" title="Guardar cambios" aria-label="Guardar cambios"><i class="bi bi-check2"></i></button>
+                </form>
+                <form method="post" class="d-inline" data-ajax data-on-success="reload" data-peligro data-confirm="¿Quitar «{{ d.servicio.nombre }}» de la orden?" data-confirm-boton="Quitar"
+                      action="{{ url_for('ordenes.quitar_servicio', id_orden=orden.id_orden, id_detalle=d.id_detalle) }}">
+                  {{ m.csrf() }}<button class="btn btn-outline-danger btn-sm btn-icon" title="Quitar" aria-label="Quitar servicio"><i class="bi bi-trash"></i></button>
+                </form>
+              </td>
+              {% endif %}
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+        {% call m.vacio('tools', 'Sin servicios registrados', 'Agrega al menos un servicio del catálogo para poder completar esta orden.') %}{% endcall %}
+      {% endif %}
+      <div class="d-flex justify-content-between align-items-center mt-3 pt-2 border-top">
+        <span class="text-muted"><i class="bi bi-tools"></i> Subtotal Servicios:</span>
+        <span class="money fw-bold">{{ orden.subtotal_servicios|moneda }}</span>
+      </div>
+
+      {% if puede_editar %}
+      <hr class="divider no-imprimir">
+      <form method="post" class="row g-2 align-items-end no-imprimir" data-ajax data-on-success="reload" action="{{ url_for('ordenes.agregar_servicio', id_orden=orden.id_orden) }}">
+        {{ m.csrf() }}
+        <div class="col-md-6"><label class="form-label" for="add-servicio">Agregar servicio</label>
+          <select class="form-select" id="add-servicio" name="id_servicio" data-autocosto="#add-costo" required>
+            <option value="">Selecciona…</option>
+            {% for s in servicios %}<option value="{{ s.id_servicio }}" data-costo="{{ s.costo_base }}">{{ s.nombre }} — {{ s.costo_base|moneda }}</option>{% endfor %}
+          </select></div>
+        <div class="col-6 col-md-3"><label class="form-label" for="add-costo">Costo</label>
+          <input class="form-control" id="add-costo" name="costo" type="number" step="0.01" min="0" inputmode="decimal" placeholder="Catálogo"></div>
+        <div class="col-6 col-md-1"><label class="form-label" for="add-cant">Cant.</label>
+          <input class="form-control" id="add-cant" name="cantidad" type="number" min="1" max="999" value="1"></div>
+        <div class="col-md-2"><button class="btn btn-primary w-100"><i class="bi bi-plus-lg"></i> Agregar</button></div>
+      </form>
+      {% endif %}
+    </section>
+
+    {# ---- Refacciones y Piezas (Monto derivado de piezas) ---- #}
+    <section class="glass panel mb-3">
+      <h2 class="panel-title d-flex justify-content-between align-items-center">
+        <span><i class="bi bi-box-seam text-info"></i> Refacciones y Piezas</span>
+        <span class="badge badge-soft">{{ orden.piezas|length }} pieza{% if orden.piezas|length != 1 %}s{% endif %}</span>
+      </h2>
+      {% if orden.piezas %}
+      <div class="table-wrap">
+        <table class="table table-cards">
+          <thead>
+            <tr>
+              <th>Descripción / Pieza</th>
+              <th>Núm. Parte</th>
+              <th class="text-end">Costo Unit.</th>
+              <th class="text-center">Cant.</th>
+              <th class="text-end">Subtotal</th>
+              {% if puede_editar %}<th class="no-imprimir"></th>{% endif %}
+            </tr>
+          </thead>
+          <tbody>
+          {% for p in orden.piezas %}
+            <tr>
+              <td data-label="Descripción"><b>{{ p.descripcion }}</b></td>
+              <td data-label="Núm. Parte" class="text-muted">{{ p.numero_parte or '—' }}</td>
+              {% if puede_editar %}
+              <td data-label="Costo" class="text-end">
+                <span class="solo-impresion money">{{ p.costo_unitario|moneda }}</span>
+                <span class="no-imprimir"><input class="form-control text-end" style="max-width:140px;margin-left:auto" type="number" step="0.01" min="0" name="costo_unitario" value="{{ p.costo_unitario }}" form="fp-{{ p.id_pieza }}" aria-label="Costo de pieza"></span>
+              </td>
+              <td data-label="Cantidad" class="text-center">
+                <span class="solo-impresion">{{ p.cantidad }}</span>
+                <span class="no-imprimir"><input class="form-control text-center" style="max-width:90px;margin:auto" type="number" min="1" max="999" name="cantidad" value="{{ p.cantidad }}" form="fp-{{ p.id_pieza }}" aria-label="Cantidad de piezas"></span>
+              </td>
+              {% else %}
+              <td data-label="Costo" class="text-end money">{{ p.costo_unitario|moneda }}</td>
+              <td data-label="Cantidad" class="text-center">{{ p.cantidad }}</td>
+              {% endif %}
+              <td data-label="Subtotal" class="text-end money fw-bold">{{ p.subtotal|moneda }}</td>
+              {% if puede_editar %}
+              <td class="text-end acciones no-imprimir">
+                <form id="fp-{{ p.id_pieza }}" method="post" class="d-inline" data-ajax data-on-success="reload" action="{{ url_for('ordenes.actualizar_pieza', id_orden=orden.id_orden, id_pieza=p.id_pieza) }}">
+                  {{ m.csrf() }}<button class="btn btn-glass btn-sm btn-icon" title="Guardar cambios" aria-label="Guardar cambios"><i class="bi bi-check2"></i></button>
+                </form>
+                <form method="post" class="d-inline" data-ajax data-on-success="reload" data-peligro data-confirm="¿Quitar «{{ p.descripcion }}» de la orden?" data-confirm-boton="Quitar"
+                      action="{{ url_for('ordenes.quitar_pieza', id_orden=orden.id_orden, id_pieza=p.id_pieza) }}">
+                  {{ m.csrf() }}<button class="btn btn-outline-danger btn-sm btn-icon" title="Quitar" aria-label="Quitar pieza"><i class="bi bi-trash"></i></button>
+                </form>
+              </td>
+              {% endif %}
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+        {% call m.vacio('box-seam', 'Sin piezas ni refacciones', 'Si este trabajo requirió refacciones, agrégalas para sumarlas al total de la factura.') %}{% endcall %}
+      {% endif %}
+
+      <div class="d-flex justify-content-between align-items-center mt-3 pt-2 border-top">
+        <span class="text-muted"><i class="bi bi-box-seam"></i> Subtotal Refacciones:</span>
+        <span class="money fw-bold">{{ orden.subtotal_piezas|moneda }}</span>
+      </div>
+
+      {% if puede_editar %}
+      <hr class="divider no-imprimir">
+      <form method="post" class="row g-2 align-items-end no-imprimir" data-ajax data-on-success="reload" action="{{ url_for('ordenes.agregar_pieza', id_orden=orden.id_orden) }}">
+        {{ m.csrf() }}
+        <div class="col-md-5">
+          <label class="form-label" for="add-pieza-desc">Agregar refacción / pieza</label>
+          <input class="form-control" id="add-pieza-desc" name="descripcion" placeholder="Ej. Filtro de aceite, Balatas, Banda..." required>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label" for="add-pieza-parte">Núm. de parte <span class="text-muted small">(opcional)</span></label>
+          <input class="form-control" id="add-pieza-parte" name="numero_parte" placeholder="Ej. OEM-1234">
+        </div>
+        <div class="col-6 col-md-2">
+          <label class="form-label" for="add-pieza-costo">Costo Unit.</label>
+          <input class="form-control" id="add-pieza-costo" name="costo_unitario" type="number" step="0.01" min="0" inputmode="decimal" placeholder="0.00" required>
+        </div>
+        <div class="col-6 col-md-1">
+          <label class="form-label" for="add-pieza-cant">Cant.</label>
+          <input class="form-control" id="add-pieza-cant" name="cantidad" type="number" min="1" max="999" value="1">
+        </div>
+        <div class="col-md-1">
+          <button class="btn btn-primary w-100" title="Agregar pieza"><i class="bi bi-plus-lg"></i></button>
+        </div>
+      </form>
+      {% endif %}
+    </section>
+
+    {# ---- Resumen Financiero Total de la Factura ---- #}
+    <div class="glass panel mb-3 p-3">
+      <div class="d-flex justify-content-between align-items-center mb-1">
+        <span class="text-muted"><i class="bi bi-tools"></i> Mano de Obra (Servicios):</span>
+        <span class="money fw-semibold">{{ orden.subtotal_servicios|moneda }}</span>
+      </div>
+      <div class="d-flex justify-content-between align-items-center mb-2">
+        <span class="text-muted"><i class="bi bi-box-seam"></i> Refacciones y Piezas:</span>
+        <span class="money fw-semibold">{{ orden.subtotal_piezas|moneda }}</span>
+      </div>
+      <hr class="divider my-2">
+      <div class="d-flex justify-content-between align-items-center">
+        <span class="fw-bold fs-5"><i class="bi bi-receipt"></i> Total a Pagar / Factura:</span>
+        <span class="num money fs-4 text-primary fw-bold">{{ orden.total_costo|moneda }}</span>
+      </div>
+    </div>
+
+    {# ---- Diagnóstico y observaciones ---- #}
+    <section class="glass panel mb-3">
+      <h2 class="panel-title"><i class="bi bi-journal-text"></i> Diagnóstico y observaciones</h2>
+      {% if puede_datos %}
+      <form method="post" data-ajax data-on-success="reload" action="{{ url_for('ordenes.actualizar_datos', id_orden=orden.id_orden) }}" class="no-imprimir">
+        {{ m.csrf() }}
+        <div class="row g-3">
+          <div class="col-12"><label class="form-label" for="diagnostico_inicial">Diagnóstico inicial</label>
+            <textarea class="form-control" id="diagnostico_inicial" name="diagnostico_inicial" rows="3">{{ orden.diagnostico_inicial or '' }}</textarea></div>
+          <div class="col-12"><label class="form-label" for="observaciones_finales">Observaciones finales</label>
+            <textarea class="form-control" id="observaciones_finales" name="observaciones_finales" rows="3" placeholder="Trabajo realizado, refacciones cambiadas, recomendaciones al cliente…">{{ orden.observaciones_finales or '' }}</textarea></div>
+          <div class="col-md-4"><label class="form-label" for="kilometraje">Kilometraje</label>
+            <input class="form-control" id="kilometraje" name="kilometraje" type="number" min="0" max="3000000" value="{{ orden.kilometraje if orden.kilometraje is not none }}"></div>
+          <div class="col-md-8"><label class="form-label" for="fecha_entrega_estimada">Entrega estimada</label>
+            <input class="form-control" id="fecha_entrega_estimada" name="fecha_entrega_estimada" type="datetime-local" value="{{ orden.fecha_entrega_estimada|inputdt }}"></div>
+          {% if current_user.es_admin %}
+          <div class="col-md-6"><label class="form-label" for="fecha_ingreso">Fecha de ingreso</label>
+            <input class="form-control" id="fecha_ingreso" name="fecha_ingreso" type="datetime-local" value="{{ orden.fecha_ingreso|inputdt }}" max="{{ ahora|inputdt }}"></div>
+          <div class="col-md-6"><label class="form-label" for="id_mecanico">Mecánico responsable</label>
+            <select class="form-select" id="id_mecanico" name="id_mecanico">
+              {% for mec in mecanicos %}<option value="{{ mec.id_usuario }}" {{ 'selected' if mec.id_usuario == orden.id_mecanico }}>{{ mec.nombre_completo }}</option>{% endfor %}
+              {% if orden.mecanico not in mecanicos %}<option value="{{ orden.id_mecanico }}" selected>{{ orden.mecanico.nombre_completo }} (inactivo)</option>{% endif %}
+            </select></div>
+          {% endif %}
+        </div>
+        <button class="btn btn-primary mt-3"><i class="bi bi-check2"></i> Guardar cambios</button>
+      </form>
+      {# Versión de impresión (texto plano) #}
+      <div class="solo-impresion">
+        <div class="dato"><div class="k">Diagnóstico inicial</div><div class="v">{{ orden.diagnostico_inicial or '—' }}</div></div>
+        <div class="dato"><div class="k">Observaciones finales</div><div class="v">{{ orden.observaciones_finales or '—' }}</div></div>
+      </div>
+      {% else %}
+        <div class="dato"><div class="k">Diagnóstico inicial</div><div class="v">{{ orden.diagnostico_inicial or '—' }}</div></div>
+        <div class="dato mb-0"><div class="k">Observaciones finales</div><div class="v">{{ orden.observaciones_finales or '—' }}</div></div>
+      {% endif %}
+    </section>
+
+    <div class="hoja-firmas solo-impresion"><div>Firma del cliente</div><div>Firma del mecánico</div></div>
+  </div>
+
+  <div class="col-xl-4">
+    <section class="glass panel mb-3">
+      <h2 class="panel-title"><i class="bi bi-info-circle"></i> Información</h2>
+      <div class="dato"><div class="k">Cliente</div><div class="v">
+        <a href="{{ url_for('clientes.detalle', id_cliente=cliente.id_cliente) }}">{{ cliente.nombre_completo }}</a>
+        <span class="sub text-muted small d-block">{{ cliente.telefono }}</span></div></div>
+      <div class="dato"><div class="k">Vehículo</div><div class="v">{{ orden.vehiculo.descripcion }}
+        <span class="d-block text-muted small">{{ orden.vehiculo.placas }}{% if orden.vehiculo.color %} · {{ orden.vehiculo.color }}{% endif %}{% if orden.vehiculo.numero_serie_vin %} · VIN {{ orden.vehiculo.numero_serie_vin }}{% endif %}</span></div></div>
+      <div class="dato"><div class="k">Mecánico responsable</div><div class="v">{{ orden.mecanico.nombre_completo }}</div></div>
+      <div class="row">
+        <div class="col-6 dato"><div class="k">Ingreso</div><div class="v">{{ orden.fecha_ingreso|fechahora }}</div></div>
+        <div class="col-6 dato"><div class="k">Entrega estimada</div><div class="v">{{ orden.fecha_entrega_estimada|fechahora }}</div></div>
+        <div class="col-6 dato mb-0"><div class="k">Finalización</div><div class="v">{{ orden.fecha_finalizacion|fechahora }}</div></div>
+        <div class="col-6 dato mb-0"><div class="k">Kilometraje</div><div class="v">{% if orden.kilometraje is not none %}{{ '{:,}'.format(orden.kilometraje) }} km{% else %}—{% endif %}</div></div>
+      </div>
+    </section>
+
+    <section class="glass panel mb-3 no-imprimir">
+      <div class="d-flex justify-content-between align-items-center mb-2">
+        <h2 class="panel-title mb-0"><i class="bi bi-camera text-info"></i> Inspección del Vehículo</h2>
+        <span class="badge badge-soft">{{ orden.vehiculo.anomalias|length }} registrada{% if orden.vehiculo.anomalias|length != 1 %}s{% endif %}</span>
+      </div>
+      <p class="small text-muted mb-2">Detalles, rayones o anomalías externas con fotos.</p>
+      <a href="{{ url_for('clientes.detalle_vehiculo', id_vehiculo=orden.vehiculo.id_vehiculo) }}" class="btn btn-glass btn-sm w-100">
+        <i class="bi bi-images"></i> Ver / Registrar fotos del vehículo
+      </a>
+    </section>
+
+    <section class="glass panel no-imprimir">
+      <h2 class="panel-title"><i class="bi bi-clock-history"></i> Historial de estados</h2>
+      <ul class="timeline">
+        {% for h in orden.historial|reverse %}
+        <li>{{ m.estado(h.estado_nuevo) }}
+          <small>{% if h.estado_anterior %}Desde «{{ h.estado_anterior }}» · {% endif %}{{ h.fecha|fechahora }}{% if h.usuario %} · {{ h.usuario.nombre_completo }}{% endif %}</small></li>
+        {% else %}<li class="text-faint">Sin movimientos registrados.</li>{% endfor %}
+      </ul>
+    </section>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}<script src="{{ url_for('static', filename='js/ordenes.js') }}"></script>{% endblock %}

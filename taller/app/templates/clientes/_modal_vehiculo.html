@@ -1,0 +1,34 @@
+{# Modal de alta/edición de vehículo. Requiere: m (macros). Variable opcional: id_cliente. #}
+<div class="modal fade" id="modalVehiculo" tabindex="-1" aria-hidden="true" data-form-modal data-titulo-nuevo="Nuevo vehículo" data-titulo-editar="Editar vehículo">
+  <div class="modal-dialog modal-dialog-centered">
+    <form class="modal-content" method="post" action="{{ url_for('clientes.guardar_vehiculo') }}" data-ajax data-on-success="reload" data-validate novalidate>
+      {{ m.csrf() }}
+      <input type="hidden" name="id_vehiculo">
+      <input type="hidden" name="id_cliente" value="{{ id_cliente|default('') }}">
+      <div class="modal-header"><h5 class="modal-title">Nuevo vehículo</h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button></div>
+      <div class="modal-body">
+        <div class="row g-3">
+          <div class="col-sm-6"><label class="form-label" for="v-marca">Marca *</label>
+            <input class="form-control" id="v-marca" name="marca" maxlength="50" required list="lista-marcas" autocomplete="off"></div>
+          <div class="col-sm-6"><label class="form-label" for="v-modelo">Modelo *</label>
+            <input class="form-control" id="v-modelo" name="modelo" maxlength="50" required autocomplete="off"></div>
+          <div class="col-sm-4"><label class="form-label" for="v-anio">Año *</label>
+            <input class="form-control" id="v-anio" name="anio" type="number" inputmode="numeric" min="1900" max="2100" required></div>
+          <div class="col-sm-8"><label class="form-label" for="v-placas">Placas *</label>
+            <input class="form-control text-uppercase" id="v-placas" name="placas" maxlength="20" required autocomplete="off"></div>
+          <div class="col-sm-7"><label class="form-label" for="v-vin">Número de serie (VIN)</label>
+            <input class="form-control text-uppercase" id="v-vin" name="numero_serie_vin" maxlength="50" autocomplete="off"></div>
+          <div class="col-sm-5"><label class="form-label" for="v-color">Color</label>
+            <input class="form-control" id="v-color" name="color" maxlength="30" autocomplete="off"></div>
+        </div>
+        <datalist id="lista-marcas">
+          {% for marca in ['Nissan','Volkswagen','Chevrolet','Ford','Toyota','Honda','Mazda','Kia','Hyundai','Renault','SEAT','Suzuki','Mitsubishi','BMW','Mercedes-Benz','Audi','Jeep','Dodge','Peugeot','Fiat'] %}<option value="{{ marca }}">{% endfor %}
+        </datalist>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-glass" data-bs-dismiss="modal">Cancelar</button>
+        <button type="submit" class="btn btn-primary"><i class="bi bi-check2"></i> Guardar</button>
+      </div>
+    </form>
+  </div>
+</div>

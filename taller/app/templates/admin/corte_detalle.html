@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% import '_macros.html' as m with context %}
+{% block title %}Corte {{ corte.folio }}{% endblock %}
+{% block content %}
+{% set volver = url_for('admin.comisiones') if vista_admin else url_for('mecanico.cortes') %}
+{% set url_pdf = url_for('admin.pdf_corte', id_corte=corte.id_corte) if vista_admin else url_for('mecanico.pdf_corte', id_corte=corte.id_corte) %}
+
+<div class="solo-impresion mb-3">
+  <h1 style="font-size:1.6rem;margin:0">{{ TALLER_NOMBRE }}</h1>
+  <div>Reporte de pago de comisiones · <b>{{ corte.folio }}</b></div><hr>
+</div>
+
+<div class="page-head no-imprimir">
+  <div>
+    <a href="{{ volver }}" class="text-muted small"><i class="bi bi-arrow-left"></i> {{ 'Comisiones y cortes' if vista_admin else 'Mis cortes' }}</a>
+    <h1 class="mt-1 d-flex align-items-center gap-2 flex-wrap">Corte {{ corte.folio }}
+      <span class="estado estado-{{ 'pagado' if corte.estatus_pago == 'Pagado' else 'pendiente' }}">{{ corte.estatus_pago }}</span></h1>
+    <p class="sub">{{ corte.mecanico.nombre_completo }} · {{ corte.fecha_inicio.strftime('%d/%m/%Y') }} al {{ corte.fecha_fin.strftime('%d/%m/%Y') }}</p>
+  </div>
+  <div class="page-actions">
+    <button type="button" class="btn btn-glass" data-print><i class="bi bi-printer"></i> Imprimir</button>
+    <a class="btn btn-glass" href="{{ url_pdf }}"><i class="bi bi-file-earmark-pdf"></i> Descargar PDF</a>
+    {% if vista_admin and corte.estatus_pago == 'Pendiente' %}
+    <form method="post" action="{{ url_for('admin.pagar_corte', id_corte=corte.id_corte) }}" data-ajax data-on-success="reload"
+          data-confirm="¿Marcar el corte {{ corte.folio }} como pagado? Esta acción no se puede revertir." data-confirm-boton="Marcar como pagado">
+      {{ m.csrf() }}<button class="btn btn-success"><i class="bi bi-cash-coin"></i> Marcar como pagado</button>
+    </form>
+    {% endif %}
+  </div>
+</div>
+
+<div class="row g-3 mb-3">
+  <div class="col-sm-6 col-xl-3"><div class="glass stat c-blue"><div class="ico"><i class="bi bi-wrench"></i></div><div class="label">Total de reparaciones</div><div class="value">{{ corte.total_reparaciones_monto|moneda }}</div><div class="hint">{{ corte.cantidad_ordenes }} órdenes</div></div></div>
+  <div class="col-sm-6 col-xl-3"><div class="glass stat c-violet"><div class="ico"><i class="bi bi-percent"></i></div><div class="label">Porcentaje aplicado</div><div class="value">{{ corte.porcentaje_aplicado|porcentaje }}</div><div class="hint">Congelado al cerrar el corte</div></div></div>
+  <div class="col-sm-6 col-xl-3"><div class="glass stat c-green"><div class="ico"><i class="bi bi-cash-coin"></i></div><div class="label">Comisión a pagar</div><div class="value">{{ corte.monto_comision_pagar|moneda }}</div><div class="hint">{% if corte.fecha_pago %}Pagado el {{ corte.fecha_pago|fechahora }}{% else %}Pendiente de pago{% endif %}</div></div></div>
+  <div class="col-sm-6 col-xl-3"><div class="glass stat c-amber"><div class="ico"><i class="bi bi-lock"></i></div><div class="label">Cerrado el</div><div class="value" style="font-size:1.2rem">{{ corte.fecha_cierre|fechahora }}</div><div class="hint">Por {{ corte.admin_cierre.nombre_completo }}</div></div></div>
+</div>
+
+<section class="glass panel p-2 p-md-3">
+  <h2 class="panel-title px-2 pt-2"><i class="bi bi-list-check"></i> Órdenes incluidas</h2>
+  {% if ordenes %}
+  <div class="table-wrap">
+    <table class="table table-hover table-cards">
+      <thead><tr><th>Folio</th><th>Ingreso</th><th>Vehículo</th><th>Cliente</th><th class="text-end">Total</th></tr></thead>
+      <tbody>
+      {% for o in ordenes %}
+        <tr>
+          <td data-label="Folio"><a class="fila-link" href="{{ url_for('ordenes.detalle', id_orden=o.id_orden) }}">{{ o.folio }}</a></td>
+          <td data-label="Ingreso">{{ o.fecha_ingreso|fecha }}</td>
+          <td data-label="Vehículo">{{ o.vehiculo.descripcion }}<span class="sub">{{ o.vehiculo.placas }}</span></td>
+          <td data-label="Cliente">{{ o.vehiculo.cliente.nombre_completo }}</td>
+          <td data-label="Total" class="text-end money">{{ o.total_costo|moneda }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+      <tfoot><tr><td colspan="4" class="text-end fw-bold">Comisión ({{ corte.porcentaje_aplicado|porcentaje }} de {{ corte.total_reparaciones_monto|moneda }})</td><td class="text-end money fw-bold">{{ corte.monto_comision_pagar|moneda }}</td></tr></tfoot>
+    </table>
+  </div>
+  {% else %}
+    {% call m.vacio('inbox', 'Sin órdenes asociadas', 'Este corte no tiene órdenes vinculadas.') %}{% endcall %}
+  {% endif %}
+</section>
+<div class="hoja-firmas solo-impresion"><div>Firma del mecánico</div><div>Firma de la administración</div></div>
+{% endblock %}

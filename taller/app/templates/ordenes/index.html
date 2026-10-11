@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+{% import '_macros.html' as m with context %}
+{% block title %}{{ 'Órdenes de trabajo' if current_user.es_admin else 'Mis trabajos' }}{% endblock %}
+{% block content %}
+{% set filtros_activos = args.get('q') or args.get('estado') or args.get('mecanico') or args.get('desde') or args.get('hasta') %}
+<div class="page-head">
+  <div>
+    <h1>{{ 'Órdenes de trabajo' if current_user.es_admin else 'Mis trabajos' }}</h1>
+    <p class="sub">{{ 'Seguimiento de todos los vehículos en el taller.' if current_user.es_admin else 'Tu historial individual de trabajos asignados.' }}</p>
+  </div>
+  <div class="page-actions">
+    <div class="chips" role="tablist" aria-label="Tipo de vista">
+      {% set p = args.to_dict() %}
+      <a class="{{ 'on' if vista == 'lista' }}" href="{{ url_for('ordenes.index', **dict(p, vista='lista', page=none)) }}"><i class="bi bi-list-ul"></i> Lista</a>
+      <a class="{{ 'on' if vista == 'kanban' }}" href="{{ url_for('ordenes.index', **dict(p, vista='kanban', page=none)) }}"><i class="bi bi-kanban"></i> Tablero</a>
+    </div>
+    <a class="btn btn-primary" href="{{ url_for('ordenes.nueva') }}"><i class="bi bi-plus-lg"></i> Nueva orden</a>
+  </div>
+</div>
+
+<form class="glass filtros" action="{{ url_for('ordenes.index') }}" method="get" {% if vista == 'lista' %}data-live data-target="#tabla"{% endif %} role="search">
+  <input type="hidden" name="vista" value="{{ vista }}">
+  <div class="row g-2 align-items-end">
+    <div class="col-lg-4 col-md-6">
+      <div class="search-box"><i class="bi bi-search"></i>
+        <input type="search" class="form-control" name="q" value="{{ args.get('q', '') }}" placeholder="Folio, placas, vehículo o cliente…" autocomplete="off" aria-label="Buscar órdenes">
+        <span class="spinner"></span></div>
+    </div>
+    <div class="col-lg-2 col-md-6">
+      <select class="form-select" name="estado" aria-label="Estado">
+        <option value="">Todos los estados</option>
+        {% for e in ESTADOS %}<option value="{{ e }}" {{ 'selected' if args.get('estado') == e }}>{{ e }}</option>{% endfor %}
+      </select>
+    </div>
+    {% if current_user.es_admin %}
+    <div class="col-lg-2 col-md-6">
+      <select class="form-select" name="mecanico" aria-label="Mecánico">
+        <option value="">Todos los mecánicos</option>
+        {% for mec in mecanicos %}<option value="{{ mec.id_usuario }}" {{ 'selected' if args.get('mecanico') == mec.id_usuario|string }}>{{ mec.nombre_completo }}</option>{% endfor %}
+      </select>
+    </div>
+    {% endif %}
+    <div class="col-lg-{{ 1 if current_user.es_admin else 2 }} col-6">
+      <input type="date" class="form-control" name="desde" value="{{ args.get('desde', '') }}" aria-label="Desde" title="Ingreso desde">
+    </div>
+    <div class="col-lg-{{ 1 if current_user.es_admin else 2 }} col-6">
+      <input type="date" class="form-control" name="hasta" value="{{ args.get('hasta', '') }}" aria-label="Hasta" title="Ingreso hasta">
+    </div>
+    <div class="col-lg-2 col-12 d-flex gap-2">
+      {% if vista != 'lista' %}<button class="btn btn-primary flex-fill" type="submit"><i class="bi bi-funnel"></i> Filtrar</button>{% endif %}
+      <a class="btn btn-glass {{ 'flex-fill' if vista != 'lista' else 'w-100' }}" href="{{ url_for('ordenes.index', vista=vista) }}" {% if vista == 'lista' %}data-limpiar{% endif %}><i class="bi bi-x-circle"></i> Limpiar</a>
+    </div>
+  </div>
+</form>
+
+{% if vista == 'kanban' %}
+  <div class="kanban">
+    {% for col in columnas %}
+    <section class="kanban-col glass" aria-label="{{ col.estado }}">
+      <header>{{ m.estado(col.estado) }}<span class="cnt">{{ col.total }}</span></header>
+      {% for o in col['items'] %}
+        {% set siguiente = {'Pendiente': 'En Proceso', 'En Proceso': 'Completado', 'Completado': 'Entregado'}.get(o.estado) %}
+        <div class="kcard glass-hover">
+          <a href="{{ url_for('ordenes.detalle', id_orden=o.id_orden) }}" class="d-block text-reset">
+            <div class="folio">{{ o.folio }}</div>
+            <div class="veh">{{ o.vehiculo.descripcion }} · {{ o.vehiculo.placas }}</div>
+            <div class="text-muted small">{{ o.vehiculo.cliente.nombre_completo }}</div>
+            <div class="meta"><span><i class="bi bi-calendar3"></i> {{ o.fecha_ingreso|fecha }}</span><span class="money">{{ o.total_costo|moneda }}</span></div>
+            {% if current_user.es_admin %}<div class="meta"><span><i class="bi bi-person-gear"></i> {{ o.mecanico.nombre_completo }}</span></div>{% endif %}
+          </a>
+          {% if siguiente and siguiente in permitidos(o) %}<div class="acc">{{ m.boton_estado(o, siguiente) }}</div>{% endif %}
+        </div>
+      {% else %}
+        <div class="text-center text-faint py-4 small">Sin órdenes</div>
+      {% endfor %}
+      {% if col.total > col['items']|length %}
+        <a class="btn btn-ghost btn-sm w-100" href="{{ url_for('ordenes.index', **dict(args.to_dict(), vista='lista', estado=col.estado)) }}">Ver las {{ col.total }} en lista</a>
+      {% endif %}
+    </section>
+    {% endfor %}
+  </div>
+{% else %}
+  <div class="glass panel p-2 p-md-3" id="tabla">{% include 'ordenes/_tabla.html' %}</div>
+{% endif %}
+{% endblock %}

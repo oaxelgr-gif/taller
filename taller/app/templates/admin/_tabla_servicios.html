@@ -1,0 +1,40 @@
+{% import '_macros.html' as m with context %}
+{% if pag.items %}
+<div class="table-wrap">
+  <table class="table table-hover table-cards">
+    <thead><tr><th>Servicio</th><th class="text-end">Costo base</th><th>Usos</th><th>Estado</th><th></th></tr></thead>
+    <tbody>
+    {% for s in pag.items %}
+      <tr>
+        <td data-label="Servicio"><b>{{ s.nombre }}</b>{% if s.descripcion %}<span class="sub">{{ s.descripcion }}</span>{% endif %}</td>
+        <td data-label="Costo base" class="text-end money">{{ s.costo_base|moneda }}</td>
+        <td data-label="Usos">{{ usos.get(s.id_servicio, 0) }}</td>
+        <td data-label="Estado">{% if s.activo %}<span class="estado estado-completado">Activo</span>{% else %}<span class="estado estado-cancelado">Inactivo</span>{% endif %}</td>
+        <td class="text-end acciones">
+          <button type="button" class="btn btn-glass btn-sm" data-bs-toggle="modal" data-bs-target="#modalServicio" aria-label="Editar servicio"
+            data-edit='{{ {"id_servicio": s.id_servicio, "nombre": s.nombre, "descripcion": s.descripcion or "", "costo_base": s.costo_base|string, "activo": s.activo}|tojson }}'><i class="bi bi-pencil"></i> Editar</button>
+          <form method="post" class="d-inline" data-ajax data-on-success="reload" action="{{ url_for('admin.alternar_servicio', id_servicio=s.id_servicio) }}">
+            {{ m.csrf() }}<button class="btn btn-glass btn-sm btn-icon" title="{{ 'Desactivar' if s.activo else 'Activar' }}" aria-label="{{ 'Desactivar' if s.activo else 'Activar' }}"><i class="bi bi-toggle-{{ 'on' if s.activo else 'off' }}"></i></button>
+          </form>
+          {% if not usos.get(s.id_servicio) %}
+          <form method="post" class="d-inline" data-ajax data-on-success="reload" data-peligro action="{{ url_for('admin.eliminar_servicio', id_servicio=s.id_servicio) }}"
+                data-confirm="¿Eliminar «{{ s.nombre }}» del catálogo?" data-confirm-boton="Eliminar" data-confirm-titulo="Eliminar servicio">
+            {{ m.csrf() }}<button class="btn btn-outline-danger btn-sm btn-icon" title="Eliminar" aria-label="Eliminar servicio"><i class="bi bi-trash"></i></button>
+          </form>
+          {% endif %}
+        </td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{{ m.paginacion(pag) }}
+{% else %}
+  {% if q or estado %}
+    {% call m.vacio('search', 'Sin resultados', 'Ningún servicio coincide con los filtros.') %}{% endcall %}
+  {% else %}
+    {% call m.vacio('tools', 'El catálogo está vacío', 'Agrega los servicios que ofrece el taller para poder cotizarlos en las órdenes.') %}
+      <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#modalServicio"><i class="bi bi-plus-lg"></i> Nuevo servicio</button>
+    {% endcall %}
+  {% endif %}
+{% endif %}

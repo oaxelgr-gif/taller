@@ -1,0 +1,168 @@
+{% extends "base.html" %}
+{% import '_macros.html' as m with context %}
+{% block title %}{{ vehiculo.descripcion }} ({{ vehiculo.placas }}){% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <a href="{{ url_for('clientes.vehiculos') }}" class="text-muted small"><i class="bi bi-arrow-left"></i> Vehículos</a>
+    <h1 class="mt-1 d-flex align-items-center flex-wrap gap-2">
+      {{ vehiculo.marca }} {{ vehiculo.modelo }} {{ vehiculo.anio }}
+      <span class="badge-soft fw-bold fs-6">{{ vehiculo.placas }}</span>
+    </h1>
+    <p class="sub">Propietario: <a href="{{ url_for('clientes.detalle', id_cliente=vehiculo.id_cliente) }}" class="fw-semibold text-reset">{{ vehiculo.cliente.nombre_completo }}</a> · Tel: {{ vehiculo.cliente.telefono }}</p>
+  </div>
+  <div class="page-actions">
+    <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#modalAnomalia">
+      <i class="bi bi-camera-fill"></i> Registrar anomalía / foto
+    </button>
+    <a class="btn btn-glass" href="{{ url_for('ordenes.nueva', vehiculo=vehiculo.id_vehiculo) }}">
+      <i class="bi bi-clipboard2-plus"></i> Nueva orden
+    </a>
+  </div>
+</div>
+
+<div class="row g-3 mb-3">
+  {# ---- Ficha técnica ---- #}
+  <div class="col-lg-4">
+    <div class="glass panel h-100">
+      <h2 class="panel-title"><i class="bi bi-car-front"></i> Ficha técnica</h2>
+      <div class="dato"><div class="k">Marca y modelo</div><div class="v">{{ vehiculo.marca }} {{ vehiculo.modelo }}</div></div>
+      <div class="dato"><div class="k">Año</div><div class="v">{{ vehiculo.anio }}</div></div>
+      <div class="dato"><div class="k">Placas</div><div class="v"><span class="badge-soft fw-bold">{{ vehiculo.placas }}</span></div></div>
+      <div class="dato"><div class="k">Color</div><div class="v">{{ vehiculo.color or '—' }}</div></div>
+      <div class="dato"><div class="k">Número de serie (VIN)</div><div class="v">{{ vehiculo.numero_serie_vin or '—' }}</div></div>
+      <div class="dato mb-0"><div class="k">Cliente</div><div class="v"><a href="{{ url_for('clientes.detalle', id_cliente=vehiculo.id_cliente) }}">{{ vehiculo.cliente.nombre_completo }}</a></div></div>
+    </div>
+  </div>
+
+  {# ---- Anomalías y detalles externos (Fotos) ---- #}
+  <div class="col-lg-8">
+    <div class="glass panel h-100">
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <h2 class="panel-title mb-0">
+          <i class="bi bi-camera text-info"></i> Inspección y Anomalías Externas
+          <span class="badge badge-soft ms-2">{{ anomalias|length }}</span>
+        </h2>
+        <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#modalAnomalia">
+          <i class="bi bi-plus-lg"></i> Agregar detalle
+        </button>
+      </div>
+
+      {% if anomalias %}
+      <div class="row g-3">
+        {% for a in anomalias %}
+        <div class="col-md-6">
+          <div class="glass panel p-2 h-100 border">
+            {% if a.tiene_foto %}
+            <div class="text-center mb-2 position-relative" style="max-height:220px; overflow:hidden; border-radius:10px; background:rgba(0,0,0,0.2);">
+              <a href="{{ url_for('static', filename=a.foto_path) }}" target="_blank" data-lightbox-img title="Ver imagen completa">
+                <img src="{{ url_for('static', filename=a.foto_path) }}" alt="Foto anomalía" class="img-fluid rounded" style="max-height:210px; width:100%; object-fit:cover; cursor:zoom-in;">
+              </a>
+            </div>
+            {% else %}
+            <div class="text-center p-3 mb-2 rounded bg-dark-subtle text-muted">
+              <i class="bi bi-camera-slash fs-2 d-block mb-1"></i>
+              <small>Sin fotografía adjunta</small>
+            </div>
+            {% endif %}
+
+            <div class="d-flex justify-content-between align-items-start gap-1">
+              <span class="badge badge-soft mb-1">{{ a.tipo_anomalia }}</span>
+              <form method="post" action="{{ url_for('clientes.eliminar_anomalia', id_vehiculo=vehiculo.id_vehiculo, id_anomalia=a.id_anomalia) }}"
+                    data-ajax data-on-success="reload" data-peligro data-confirm="¿Eliminar este registro de detalle del vehículo?" data-confirm-boton="Eliminar">
+                {{ m.csrf() }}
+                <button type="submit" class="btn btn-ghost btn-sm btn-icon text-danger" title="Eliminar" aria-label="Eliminar registro">
+                  <i class="bi bi-trash"></i>
+                </button>
+              </form>
+            </div>
+
+            <p class="mb-2 text-break" style="white-space:pre-wrap;">{{ a.descripcion }}</p>
+
+            <div class="small text-muted border-top pt-2 mt-auto d-flex justify-content-between align-items-center">
+              <span><i class="bi bi-calendar3"></i> {{ a.creado_en|fechahora }}</span>
+              {% if a.usuario %}<span><i class="bi bi-person"></i> {{ a.usuario.nombre_completo.split()[0] }}</span>{% endif %}
+            </div>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+        {% call m.vacio('camera', 'Sin anomalías registradas', 'Registra cualquier rayón, golpe o detalle externo previo para el control de recepción del vehículo.') %}
+          <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#modalAnomalia">
+            <i class="bi bi-plus-lg"></i> Registrar primera anomalía
+          </button>
+        {% endcall %}
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+{# ---- Historial de órdenes ---- #}
+<div class="glass panel p-2 p-md-3">
+  <h2 class="panel-title px-2 pt-2"><i class="bi bi-clock-history"></i> Historial de órdenes de este vehículo</h2>
+  {% if ordenes %}
+  <div class="table-wrap">
+    <table class="table table-hover table-cards">
+      <thead><tr><th>Folio</th><th>Fecha Ingreso</th><th>Mecánico</th><th>Estado</th><th class="text-end">Total</th></tr></thead>
+      <tbody>
+      {% for o in ordenes %}
+        <tr>
+          <td data-label="Folio"><a class="fila-link fw-bold" href="{{ url_for('ordenes.detalle', id_orden=o.id_orden) }}">{{ o.folio }}</a></td>
+          <td data-label="Ingreso">{{ o.fecha_ingreso|fechahora }}</td>
+          <td data-label="Mecánico">{{ o.mecanico.nombre_completo }}</td>
+          <td data-label="Estado">{{ m.estado(o.estado) }}</td>
+          <td data-label="Total" class="text-end money fw-bold">{{ o.total_costo|moneda }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+    {% call m.vacio('clipboard2', 'Sin órdenes de trabajo', 'Este vehículo aún no cuenta con trabajos concluidos o registrados.') %}{% endcall %}
+  {% endif %}
+</div>
+
+{# ---- Modal para registrar anomalía/foto ---- #}
+<div class="modal fade" id="modalAnomalia" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <form class="modal-content" method="post" enctype="multipart/form-data" action="{{ url_for('clientes.guardar_anomalia', id_vehiculo=vehiculo.id_vehiculo) }}" data-ajax data-on-success="reload" data-validate novalidate>
+      {{ m.csrf() }}
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="bi bi-camera"></i> Registrar detalle o anomalía externa</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+      </div>
+      <div class="modal-body">
+        <div class="mb-3">
+          <label class="form-label" for="anomalia-tipo">Tipo de detalle / daño</label>
+          <select class="form-select" id="anomalia-tipo" name="tipo_anomalia">
+            <option value="Carrocería / Rayón">Carrocería / Rayón</option>
+            <option value="Golpe / Abolladura">Golpe / Abolladura</option>
+            <option value="Cristal / Parabrisas">Cristal / Parabrisas</option>
+            <option value="Pintura dañada">Pintura dañada</option>
+            <option value="Pieza faltante">Pieza faltante</option>
+            <option value="Mecánica / Fuga">Mecánica / Fuga visible</option>
+            <option value="Interiores / Vestidura">Interiores / Vestidura</option>
+            <option value="Otro">Otro detalle externo</option>
+          </select>
+        </div>
+
+        <div class="mb-3">
+          <label class="form-label" for="anomalia-desc">Descripción del detalle *</label>
+          <textarea class="form-control" id="anomalia-desc" name="descripcion" rows="3" placeholder="Ej. Rayón pronunciado en puerta derecha trasera, abolladura previa en fascia..." required></textarea>
+        </div>
+
+        <div class="mb-3">
+          <label class="form-label" for="anomalia-foto"><i class="bi bi-image"></i> Foto (opcional)</label>
+          <input class="form-control" id="anomalia-foto" name="foto" type="file" accept="image/*">
+          <small class="text-muted d-block mt-1">Puedes tomar una foto directamente con la cámara de tu celular o elegir un archivo (JPG, PNG, WEBP).</small>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-glass" data-bs-dismiss="modal">Cancelar</button>
+        <button type="submit" class="btn btn-primary"><i class="bi bi-check2"></i> Guardar detalle</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

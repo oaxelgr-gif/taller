@@ -1,0 +1,37 @@
+{% import '_macros.html' as m with context %}
+{% if pag.items %}
+<div class="table-wrap">
+  <table class="table table-hover table-cards">
+    <thead><tr><th>Cliente</th><th>Teléfono</th><th>Vehículos</th><th>Registrado</th><th></th></tr></thead>
+    <tbody>
+    {% for c in pag.items %}
+      <tr>
+        <td data-label="Cliente">
+          <div><a class="fila-link" href="{{ url_for('clientes.detalle', id_cliente=c.id_cliente) }}">{{ c.nombre_completo }}</a>
+          {% if c.correo %}<span class="sub">{{ c.correo }}</span>{% endif %}</div>
+        </td>
+        <td data-label="Teléfono"><a href="tel:{{ c.telefono }}">{{ c.telefono }}</a></td>
+        <td data-label="Vehículos"><span class="badge-soft"><i class="bi bi-car-front"></i> {{ conteo.get(c.id_cliente, 0) }}</span></td>
+        <td data-label="Registrado">{{ c.creado_en|fecha }}</td>
+        <td class="text-end acciones">
+          <a class="btn btn-glass btn-sm" href="{{ url_for('clientes.detalle', id_cliente=c.id_cliente) }}"><i class="bi bi-eye"></i> Ver</a>
+          {% if current_user.es_admin %}
+          <button type="button" class="btn btn-glass btn-sm btn-icon" title="Editar" aria-label="Editar cliente" data-bs-toggle="modal" data-bs-target="#modalCliente"
+            data-edit='{{ {"id_cliente": c.id_cliente, "nombre_completo": c.nombre_completo, "telefono": c.telefono, "correo": c.correo or "", "direccion": c.direccion or ""}|tojson }}'><i class="bi bi-pencil"></i></button>
+          {% endif %}
+        </td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{{ m.paginacion(pag) }}
+{% else %}
+  {% if q %}
+    {% call m.vacio('search', 'Sin resultados', 'No encontramos clientes que coincidan con «' ~ q ~ '». Prueba con otro nombre, teléfono o placas.') %}{% endcall %}
+  {% else %}
+    {% call m.vacio('people', 'Aún no hay clientes', 'Registra tu primer cliente para comenzar a crear órdenes de trabajo.') %}
+      <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#modalCliente"><i class="bi bi-person-plus"></i> Nuevo cliente</button>
+    {% endcall %}
+  {% endif %}
+{% endif %}

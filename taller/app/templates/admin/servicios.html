@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% import '_macros.html' as m with context %}
+{% block title %}Catálogo de servicios{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><h1>Catálogo de servicios</h1><p class="sub">Reparaciones y costos base. El costo puede ajustarse por orden en casos excepcionales.</p></div>
+  <div class="page-actions">
+    <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#modalServicio"><i class="bi bi-plus-lg"></i> Nuevo servicio</button>
+  </div>
+</div>
+
+<form class="glass filtros" data-live data-target="#tabla" action="{{ url_for('admin.servicios') }}" role="search">
+  <div class="row g-2">
+    <div class="col-md-8"><div class="search-box"><i class="bi bi-search"></i>
+      <input type="search" class="form-control" name="q" value="{{ q }}" placeholder="Buscar servicio…" autocomplete="off" aria-label="Buscar servicios"><span class="spinner"></span></div></div>
+    <div class="col-md-4">
+      <select class="form-select" name="estado" aria-label="Estado">
+        <option value="">Activos e inactivos</option>
+        <option value="activos" {{ 'selected' if estado == 'activos' }}>Solo activos</option>
+        <option value="inactivos" {{ 'selected' if estado == 'inactivos' }}>Solo inactivos</option>
+      </select></div>
+  </div>
+</form>
+
+<div class="glass panel p-2 p-md-3" id="tabla">{% include 'admin/_tabla_servicios.html' %}</div>
+
+<div class="modal fade" id="modalServicio" tabindex="-1" aria-hidden="true" data-form-modal data-titulo-nuevo="Nuevo servicio" data-titulo-editar="Editar servicio">
+  <div class="modal-dialog modal-dialog-centered">
+    <form class="modal-content" method="post" action="{{ url_for('admin.guardar_servicio') }}" data-ajax data-validate novalidate>
+      {{ m.csrf() }}
+      <input type="hidden" name="id_servicio">
+      <div class="modal-header"><h5 class="modal-title">Nuevo servicio</h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button></div>
+      <div class="modal-body">
+        <div class="mb-3"><label class="form-label" for="s-nombre">Nombre *</label><input class="form-control" id="s-nombre" name="nombre" maxlength="100" required></div>
+        <div class="mb-3"><label class="form-label" for="s-desc">Descripción</label><textarea class="form-control" id="s-desc" name="descripcion" rows="2"></textarea></div>
+        <div class="mb-3"><label class="form-label" for="s-costo">Costo base *</label>
+          <div class="input-group"><span class="input-group-text">$</span><input class="form-control" id="s-costo" name="costo_base" type="number" step="0.01" min="0" inputmode="decimal" required></div></div>
+        <div class="form-check form-switch">
+          <input type="hidden" name="activo" value="0">
+          <input class="form-check-input" type="checkbox" role="switch" id="s-activo" name="activo" value="1" checked>
+          <label class="form-check-label" for="s-activo">Disponible para nuevas órdenes</label>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-glass" data-bs-dismiss="modal">Cancelar</button>
+        <button type="submit" class="btn btn-primary"><i class="bi bi-check2"></i> Guardar</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

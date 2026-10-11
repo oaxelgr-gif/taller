@@ -1,0 +1,277 @@
+{% extends "base.html" %}
+{% import '_macros.html' as m with context %}
+{% block title %}Reportes Financieros{% endblock %}
+{% block content %}
+<div class="page-head no-imprimir">
+  <div>
+    <h1><i class="bi bi-graph-up-arrow text-primary"></i> Reportes Financieros</h1>
+    <p class="sub">Análisis de ingresos, servicios más solicitados, refacciones y comisiones del {{ desde|fecha }} al {{ hasta|fecha }}.</p>
+  </div>
+  <div class="page-actions">
+    <button type="button" class="btn btn-glass" onclick="window.print()"><i class="bi bi-printer"></i> Imprimir reporte</button>
+  </div>
+</div>
+
+{# ---- Cabecera exclusiva para impresión ---- #}
+<div class="solo-impresion mb-4 text-center">
+  <h2 class="mb-1">{{ TALLER_NOMBRE }} · Reporte Financiero</h2>
+  <p class="text-muted mb-0">Periodo: <b>{{ desde|fecha }}</b> al <b>{{ hasta|fecha }}</b> {% if id_mecanico %} · Filtrado por mecánico{% endif %}</p>
+  <hr class="my-2">
+</div>
+
+{# ---- Barra de filtros interactivos ---- #}
+<div class="glass panel mb-3 no-imprimir p-3">
+  <form method="get" action="{{ url_for('reportes.financiero') }}" class="row g-2 align-items-end">
+    <div class="col-12 col-md-auto mb-2 mb-md-0">
+      <label class="form-label small text-muted">Periodo rápido</label>
+      <div class="btn-group w-100" role="group">
+        <a href="{{ url_for('reportes.financiero', periodo='este_mes', mecanico=id_mecanico or '') }}" class="btn btn-sm btn-glass {{ 'active' if periodo == 'este_mes' }}">Este mes</a>
+        <a href="{{ url_for('reportes.financiero', periodo='mes_anterior', mecanico=id_mecanico or '') }}" class="btn btn-sm btn-glass {{ 'active' if periodo == 'mes_anterior' }}">Mes anterior</a>
+        <a href="{{ url_for('reportes.financiero', periodo='ultimos_30', mecanico=id_mecanico or '') }}" class="btn btn-sm btn-glass {{ 'active' if periodo == 'ultimos_30' }}">30 días</a>
+        <a href="{{ url_for('reportes.financiero', periodo='anio_actual', mecanico=id_mecanico or '') }}" class="btn btn-sm btn-glass {{ 'active' if periodo == 'anio_actual' }}">Año actual</a>
+      </div>
+    </div>
+
+    <input type="hidden" name="periodo" value="personalizado">
+
+    <div class="col-6 col-md-2">
+      <label class="form-label small text-muted" for="f-desde">Desde</label>
+      <input type="date" class="form-control form-control-sm" id="f-desde" name="desde" value="{{ desde.strftime('%Y-%m-%d') }}">
+    </div>
+    <div class="col-6 col-md-2">
+      <label class="form-label small text-muted" for="f-hasta">Hasta</label>
+      <input type="date" class="form-control form-control-sm" id="f-hasta" name="hasta" value="{{ hasta.strftime('%Y-%m-%d') }}">
+    </div>
+    <div class="col-12 col-md-3">
+      <label class="form-label small text-muted" for="f-mecanico">Mecánico</label>
+      <select class="form-select form-select-sm" id="f-mecanico" name="mecanico">
+        <option value="">Todos los mecánicos</option>
+        {% for mec in mecanicos %}
+          <option value="{{ mec.id_usuario }}" {{ 'selected' if id_mecanico == mec.id_usuario }}>{{ mec.nombre_completo }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-12 col-md-auto">
+      <button type="submit" class="btn btn-primary btn-sm w-100"><i class="bi bi-funnel"></i> Filtrar</button>
+    </div>
+  </form>
+</div>
+
+{# ---- Tarjetas KPI ---- #}
+<div class="row g-3 mb-3">
+  <div class="col-6 col-xl-2">
+    <div class="glass stat glass-hover c-blue h-100">
+      <div class="ico"><i class="bi bi-cash-stack"></i></div>
+      <div class="label">Total Facturado</div>
+      <div class="value fs-4">{{ rep.total_facturado|moneda }}</div>
+      <div class="hint">{{ rep.cantidad_ordenes }} órdenes concluidas</div>
+    </div>
+  </div>
+  <div class="col-6 col-xl-2">
+    <div class="glass stat glass-hover c-teal h-100">
+      <div class="ico"><i class="bi bi-tools"></i></div>
+      <div class="label">Mano de Obra</div>
+      <div class="value fs-4">{{ rep.total_servicios|moneda }}</div>
+      <div class="hint">Servicios realizados</div>
+    </div>
+  </div>
+  <div class="col-6 col-xl-2">
+    <div class="glass stat glass-hover c-amber h-100">
+      <div class="ico"><i class="bi bi-gear-wide-connected"></i></div>
+      <div class="label">Refacciones / Piezas</div>
+      <div class="value fs-4">{{ rep.total_piezas|moneda }}</div>
+      <div class="hint">Piezas añadidas a factura</div>
+    </div>
+  </div>
+  <div class="col-6 col-xl-2">
+    <div class="glass stat glass-hover c-red h-100">
+      <div class="ico"><i class="bi bi-wallet2"></i></div>
+      <div class="label">Comisiones</div>
+      <div class="value fs-4">{{ rep.total_comisiones|moneda }}</div>
+      <div class="hint">A mecánicos</div>
+    </div>
+  </div>
+  <div class="col-6 col-xl-2">
+    <div class="glass stat glass-hover c-green h-100">
+      <div class="ico"><i class="bi bi-graph-up"></i></div>
+      <div class="label">Ganancia Neta</div>
+      <div class="value fs-4">{{ rep.ganancia_neta|moneda }}</div>
+      <div class="hint">Ingresos − comisiones</div>
+    </div>
+  </div>
+  <div class="col-6 col-xl-2">
+    <div class="glass stat glass-hover c-violet h-100">
+      <div class="ico"><i class="bi bi-receipt"></i></div>
+      <div class="label">Ticket Promedio</div>
+      <div class="value fs-4">{{ rep.ticket_promedio|moneda }}</div>
+      <div class="hint">Por vehículo atendido</div>
+    </div>
+  </div>
+</div>
+
+{# ---- Trabajos más realizados ---- #}
+<div class="row g-3 mb-3">
+  <div class="col-lg-8">
+    <section class="glass panel h-100">
+      <h2 class="panel-title">
+        <i class="bi bi-trophy text-warning"></i> Trabajos y Servicios Más Realizados
+        <span class="badge badge-soft ms-auto">{{ rep.ranking_servicios|length }} servicios</span>
+      </h2>
+      {% if rep.ranking_servicios %}
+      <div class="table-wrap">
+        <table class="table table-hover table-cards align-middle">
+          <thead>
+            <tr>
+              <th style="width:40px">#</th>
+              <th>Servicio</th>
+              <th class="text-center">Veces hecho</th>
+              <th>Frecuencia</th>
+              <th class="text-end">Costo Promedio</th>
+              <th class="text-end">Total Recaudado</th>
+              <th class="text-end">% Ingresos</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for s in rep.ranking_servicios %}
+            <tr>
+              <td class="text-muted fw-bold">{{ loop.index }}</td>
+              <td><b>{{ s.nombre }}</b></td>
+              <td class="text-center"><span class="badge badge-soft bg-primary-subtle text-primary fw-bold px-2 py-1">{{ s.veces }}</span></td>
+              <td style="min-width:120px">
+                <div class="progreso mt-1"><i style="width: {{ s.pct_frecuencia }}%"></i></div>
+                <small class="text-muted">{{ s.pct_frecuencia }}% de trabajos</small>
+              </td>
+              <td class="text-end money">{{ s.costo_promedio|moneda }}</td>
+              <td class="text-end money fw-bold text-success">{{ s.monto_total|moneda }}</td>
+              <td class="text-end text-muted small">{{ s.pct_ingresos }}%</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+        {% call m.vacio('tools', 'Sin trabajos concluidos en el periodo', 'No hay órdenes concluidas registradas en el rango de fechas seleccionado.') %}{% endcall %}
+      {% endif %}
+    </section>
+  </div>
+
+  <div class="col-lg-4">
+    <section class="glass panel h-100">
+      <h2 class="panel-title"><i class="bi bi-box-seam text-info"></i> Refacciones / Piezas Facturadas</h2>
+      {% if rep.ranking_piezas %}
+      <div class="table-wrap">
+        <table class="table table-hover align-middle">
+          <thead>
+            <tr>
+              <th>Pieza / Refacción</th>
+              <th class="text-center">Cant.</th>
+              <th class="text-end">Monto Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for p in rep.ranking_piezas %}
+            <tr>
+              <td><b>{{ p.descripcion }}</b></td>
+              <td class="text-center"><span class="badge badge-soft">{{ p.cantidad }}</span></td>
+              <td class="text-end money fw-bold">{{ p.monto_total|moneda }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+        <div class="p-3 text-center text-muted">
+          <i class="bi bi-box-seam fs-1 d-block mb-2 text-faint"></i>
+          Sin piezas facturadas en este periodo.
+        </div>
+      {% endif %}
+    </section>
+  </div>
+</div>
+
+{# ---- Desglose por mecánico ---- #}
+<div class="glass panel mb-3">
+  <h2 class="panel-title"><i class="bi bi-people text-primary"></i> Rendimiento Financiero por Mecánico</h2>
+  {% if rep.desglose_mecanicos %}
+  <div class="table-wrap">
+    <table class="table table-hover table-cards align-middle">
+      <thead>
+        <tr>
+          <th>Mecánico</th>
+          <th class="text-center">Órdenes</th>
+          <th class="text-end">Mano de Obra</th>
+          <th class="text-end">Refacciones</th>
+          <th class="text-end">Total Facturado</th>
+          <th class="text-end">Comisión Ganada</th>
+          <th class="text-end">Margen Taller</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for m_item in rep.desglose_mecanicos %}
+        <tr>
+          <td>
+            <div class="d-flex align-items-center gap-2">
+              <div class="avatar avatar-sm">{{ m_item.mecanico.iniciales }}</div>
+              <div>
+                <b>{{ m_item.mecanico.nombre_completo }}</b>
+                <div class="small text-muted">Comisión base: {{ m_item.mecanico.porcentaje_comision_defecto }}%</div>
+              </div>
+            </div>
+          </td>
+          <td class="text-center"><span class="badge badge-soft">{{ m_item.cantidad_ordenes }}</span></td>
+          <td class="text-end money">{{ m_item.total_servicios|moneda }}</td>
+          <td class="text-end money">{{ m_item.total_piezas|moneda }}</td>
+          <td class="text-end money fw-bold text-primary">{{ m_item.total_facturado|moneda }}</td>
+          <td class="text-end money text-warn">{{ m_item.comision_generada|moneda }}</td>
+          <td class="text-end money text-success fw-bold">{{ (m_item.total_facturado - m_item.comision_generada)|moneda }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+    <p class="text-muted p-3 mb-0">Sin datos de mecánicos en este periodo.</p>
+  {% endif %}
+</div>
+
+{# ---- Listado detallado de órdenes ---- #}
+<div class="glass panel">
+  <h2 class="panel-title"><i class="bi bi-card-checklist text-primary"></i> Detalle de Órdenes del Periodo ({{ rep.ordenes|length }})</h2>
+  {% if rep.ordenes %}
+  <div class="table-wrap">
+    <table class="table table-hover table-cards align-middle">
+      <thead>
+        <tr>
+          <th>Folio</th>
+          <th>Fecha</th>
+          <th>Vehículo</th>
+          <th>Cliente</th>
+          <th>Mecánico</th>
+          <th class="text-end">Servicios</th>
+          <th class="text-end">Refacciones</th>
+          <th class="text-end">Total</th>
+          <th>Estado</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for o in rep.ordenes %}
+        <tr>
+          <td><a class="fila-link fw-bold" href="{{ url_for('ordenes.detalle', id_orden=o.id_orden) }}">{{ o.folio }}</a></td>
+          <td>{{ (o.fecha_finalizacion or o.fecha_ingreso)|fecha }}</td>
+          <td>{{ o.vehiculo.descripcion }} <span class="sub">{{ o.vehiculo.placas }}</span></td>
+          <td>{{ o.vehiculo.cliente.nombre_completo }}</td>
+          <td>{{ o.mecanico.nombre_completo }}</td>
+          <td class="text-end money">{{ o.subtotal_servicios|moneda }}</td>
+          <td class="text-end money">{{ o.subtotal_piezas|moneda }}</td>
+          <td class="text-end money fw-bold">{{ o.total_costo|moneda }}</td>
+          <td>{{ m.estado(o.estado) }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+    {% call m.vacio('card-checklist', 'Sin órdenes en el rango', 'No se encontraron órdenes cobrables concluidas en el periodo seleccionado.') %}{% endcall %}
+  {% endif %}
+</div>
+{% endblock %}

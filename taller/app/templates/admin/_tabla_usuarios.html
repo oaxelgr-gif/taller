@@ -1,0 +1,35 @@
+{% import '_macros.html' as m with context %}
+{% if pag.items %}
+<div class="table-wrap">
+  <table class="table table-hover table-cards">
+    <thead><tr><th>Usuario</th><th>Rol</th><th>Comisión</th><th>Órdenes</th><th>Estado</th><th></th></tr></thead>
+    <tbody>
+    {% for u in pag.items %}
+      <tr>
+        <td data-label="Usuario"><div class="d-flex align-items-center gap-2 text-start"><div class="avatar" style="width:36px;height:36px">{{ u.iniciales }}</div>
+          <div><b>{{ u.nombre_completo }}</b>{% if u.id_usuario == current_user.id_usuario %} <span class="badge-soft">Tú</span>{% endif %}
+            <span class="sub"><code class="text-info">@{{ u.username }}</code>{% if u.correo %} · {{ u.correo }}{% endif %}</span></div></div></td>
+        <td data-label="Rol"><span class="badge-soft">{{ 'Administrador' if u.es_admin else 'Mecánico' }}</span></td>
+        <td data-label="Comisión">{% if u.es_mecanico %}{{ u.porcentaje_comision_defecto|porcentaje }}{% else %}<span class="text-faint">—</span>{% endif %}</td>
+        <td data-label="Órdenes">{{ conteo.get(u.id_usuario, 0) if u.es_mecanico else '—' }}</td>
+        <td data-label="Estado">{% if u.activo %}<span class="estado estado-completado">Activo</span>{% else %}<span class="estado estado-cancelado">Inactivo</span>{% endif %}</td>
+        <td class="text-end acciones">
+          <button type="button" class="btn btn-glass btn-sm" data-bs-toggle="modal" data-bs-target="#modalUsuario" aria-label="Editar usuario"
+            data-edit='{{ {"id_usuario": u.id_usuario, "nombre_completo": u.nombre_completo, "username": u.username, "correo": u.correo or "", "rol": u.rol.nombre, "porcentaje_comision_defecto": u.porcentaje_comision_defecto|string, "activo": u.activo}|tojson }}'><i class="bi bi-pencil"></i> Editar</button>
+          {% if u.id_usuario != current_user.id_usuario %}
+          <form method="post" class="d-inline" data-ajax data-on-success="reload" action="{{ url_for('admin.alternar_usuario', id_usuario=u.id_usuario) }}"
+                data-confirm="¿{{ 'Desactivar' if u.activo else 'Activar' }} la cuenta de {{ u.nombre_completo }}?" data-confirm-boton="{{ 'Desactivar' if u.activo else 'Activar' }}"{% if u.activo %} data-peligro{% endif %}>
+            {{ m.csrf() }}<button class="btn btn-sm {{ 'btn-outline-danger' if u.activo else 'btn-success' }}">
+              <i class="bi bi-{{ 'person-slash' if u.activo else 'person-check' }}"></i> {{ 'Desactivar' if u.activo else 'Activar' }}</button>
+          </form>
+          {% endif %}
+        </td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{{ m.paginacion(pag) }}
+{% else %}
+  {% call m.vacio('person-gear', 'Sin usuarios', 'No hay usuarios que coincidan con la búsqueda.') %}{% endcall %}
+{% endif %}

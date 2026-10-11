@@ -1,0 +1,118 @@
+{% extends "base.html" %}
+{% import '_macros.html' as m with context %}
+{% block title %}Comisiones y cortes{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><h1>Comisiones y cortes semanales</h1><p class="sub">Calcula la comisión de cada mecánico, ajústala si hace falta y cierra el corte.</p></div>
+  <div class="page-actions">
+    <div class="glass px-3 py-2 d-flex align-items-center gap-2" style="border-radius:14px"><i class="bi bi-hourglass-split text-warn"></i>
+      <span class="small text-muted">Por pagar</span><b class="money">{{ por_pagar|moneda }}</b></div>
+  </div>
+</div>
+
+<div class="row g-3 mb-4">
+  <div class="col-xl-4">
+    <section class="glass panel h-100">
+      <h2 class="panel-title"><i class="bi bi-sliders"></i> Periodo del corte</h2>
+      <form id="form-corte" method="post" action="{{ url_for('admin.cerrar_corte_ruta') }}" data-calcular-url="{{ url_for('admin.calcular_comisiones') }}" novalidate>
+        {{ m.csrf() }}
+        <div class="mb-3">
+          <label class="form-label" for="id_mecanico">Mecánico *</label>
+          <select class="form-select" id="id_mecanico" name="id_mecanico" required>
+            <option value="">Selecciona…</option>
+            {% for mec in mecanicos %}<option value="{{ mec.id_usuario }}" data-pct="{{ mec.porcentaje_comision_defecto }}">{{ mec.nombre_completo }} ({{ mec.porcentaje_comision_defecto|porcentaje }})</option>{% endfor %}
+          </select>
+        </div>
+        <div class="row g-2 mb-2">
+          <div class="col-6"><label class="form-label" for="fecha_inicio">Desde *</label><input class="form-control" type="date" id="fecha_inicio" name="fecha_inicio" value="{{ inicio.isoformat() }}" required></div>
+          <div class="col-6"><label class="form-label" for="fecha_fin">Hasta *</label><input class="form-control" type="date" id="fecha_fin" name="fecha_fin" value="{{ fin.isoformat() }}" required></div>
+        </div>
+        <div class="d-flex gap-2 flex-wrap mb-3">
+          <button type="button" class="btn btn-glass btn-sm" data-rango="semana">Esta semana</button>
+          <button type="button" class="btn btn-glass btn-sm" data-rango="pasada">Semana pasada</button>
+          <button type="button" class="btn btn-glass btn-sm" data-rango="mes">Este mes</button>
+        </div>
+        <div class="mb-3">
+          <label class="form-label" for="porcentaje">Porcentaje de comisión (pre-corte)</label>
+          <div class="input-group"><input class="form-control" type="number" id="porcentaje" name="porcentaje" min="0" max="100" step="0.01" inputmode="decimal" placeholder="Por defecto del mecánico"><span class="input-group-text">%</span></div>
+          <div class="form-text text-faint">Puedes modificarlo antes de congelar el corte.</div>
+        </div>
+        <button type="submit" class="btn btn-primary w-100" id="btn-calcular"><i class="bi bi-calculator"></i> Calcular pre-corte</button>
+        <input type="hidden" name="total_confirmado" id="total_confirmado">
+      </form>
+      <div class="formula mt-3"><b>Fórmula:</b> Σ total de órdenes «Completado» o «Entregado» aún no liquidadas × (porcentaje ÷ 100).</div>
+    </section>
+  </div>
+
+  <div class="col-xl-8">
+    <section class="glass panel h-100" id="panel-resultado">
+      <div id="estado-inicial">
+        {% call m.vacio('calculator', 'Elige un mecánico y un periodo', 'Verás aquí las órdenes que entran al corte y la comisión a pagar antes de cerrarlo.') %}{% endcall %}
+      </div>
+      <div class="resultado-corte" id="resultado">
+        <h2 class="panel-title"><i class="bi bi-receipt-cutoff"></i> Pre-corte <span class="extra badge-soft" id="res-mecanico"></span></h2>
+        <div class="row g-3 mb-3">
+          <div class="col-sm-4"><div class="dato mb-0"><div class="k">Total de reparaciones</div><div class="big-num money" id="res-total">$0.00</div></div></div>
+          <div class="col-sm-3"><div class="dato mb-0"><div class="k">Porcentaje</div><div class="big-num" id="res-pct">0%</div></div></div>
+          <div class="col-sm-5"><div class="dato mb-0"><div class="k">Comisión a pagar</div><div class="big-num money text-ok" id="res-comision">$0.00</div></div></div>
+        </div>
+        <div class="table-wrap">
+          <table class="table table-hover table-cards">
+            <thead><tr><th>Folio</th><th>Fecha</th><th>Vehículo</th><th>Estado</th><th class="text-end">Total</th></tr></thead>
+            <tbody id="res-ordenes"></tbody>
+          </table>
+        </div>
+        <div id="res-aviso" class="small text-warn mt-2 d-none"></div>
+        <div class="d-flex flex-wrap gap-2 justify-content-end mt-3">
+          <button type="button" class="btn btn-success" id="btn-cerrar"><i class="bi bi-lock"></i> Cerrar y congelar corte</button>
+        </div>
+      </div>
+    </section>
+  </div>
+</div>
+
+<section class="glass panel p-2 p-md-3">
+  <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 px-2 pt-2 mb-2">
+    <h2 class="panel-title mb-0"><i class="bi bi-archive"></i> Historial de cortes</h2>
+    <form class="d-flex gap-2 flex-wrap" method="get" action="{{ url_for('admin.comisiones') }}">
+      <select class="form-select" name="mecanico" style="width:auto" aria-label="Mecánico" onchange="this.form.submit()">
+        <option value="">Todos los mecánicos</option>
+        {% for mec in mecanicos %}<option value="{{ mec.id_usuario }}" {{ 'selected' if filtro_mec == mec.id_usuario|string }}>{{ mec.nombre_completo }}</option>{% endfor %}
+      </select>
+      <select class="form-select" name="estatus" style="width:auto" aria-label="Estatus" onchange="this.form.submit()">
+        <option value="">Todos los estatus</option>
+        <option value="Pendiente" {{ 'selected' if filtro_estatus == 'Pendiente' }}>Pendientes de pago</option>
+        <option value="Pagado" {{ 'selected' if filtro_estatus == 'Pagado' }}>Pagados</option>
+      </select>
+    </form>
+  </div>
+  {% if pag.items %}
+  <div class="table-wrap">
+    <table class="table table-hover table-cards">
+      <thead><tr><th>Folio</th><th>Mecánico</th><th>Periodo</th><th class="text-end">Reparaciones</th><th class="text-end">%</th><th class="text-end">Comisión</th><th>Pago</th><th></th></tr></thead>
+      <tbody>
+      {% for c in pag.items %}
+        <tr>
+          <td data-label="Folio"><a class="fila-link" href="{{ url_for('admin.detalle_corte', id_corte=c.id_corte) }}">{{ c.folio }}</a><span class="sub">{{ c.fecha_cierre|fecha }}</span></td>
+          <td data-label="Mecánico">{{ c.mecanico.nombre_completo }}</td>
+          <td data-label="Periodo">{{ c.fecha_inicio.strftime('%d/%m/%Y') }} – {{ c.fecha_fin.strftime('%d/%m/%Y') }}<span class="sub">{{ c.cantidad_ordenes }} órdenes</span></td>
+          <td data-label="Reparaciones" class="text-end money">{{ c.total_reparaciones_monto|moneda }}</td>
+          <td data-label="%" class="text-end">{{ c.porcentaje_aplicado|porcentaje }}</td>
+          <td data-label="Comisión" class="text-end money fw-bold">{{ c.monto_comision_pagar|moneda }}</td>
+          <td data-label="Pago"><span class="estado estado-{{ 'pagado' if c.estatus_pago == 'Pagado' else 'pendiente' }}">{{ c.estatus_pago }}</span></td>
+          <td class="text-end acciones">
+            <a class="btn btn-glass btn-sm" href="{{ url_for('admin.detalle_corte', id_corte=c.id_corte) }}"><i class="bi bi-eye"></i> Ver</a>
+            <a class="btn btn-glass btn-sm btn-icon" href="{{ url_for('admin.pdf_corte', id_corte=c.id_corte) }}" title="Descargar PDF" aria-label="Descargar PDF"><i class="bi bi-file-earmark-pdf"></i></a>
+          </td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {{ m.paginacion(pag) }}
+  {% else %}
+    {% call m.vacio('archive', 'Aún no hay cortes cerrados', 'Cuando cierres el primer corte semanal quedará registrado aquí de forma inalterable.') %}{% endcall %}
+  {% endif %}
+</section>
+{% endblock %}
+{% block scripts %}<script src="{{ url_for('static', filename='js/comisiones.js') }}"></script>{% endblock %}

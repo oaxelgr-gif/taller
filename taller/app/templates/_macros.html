@@ -1,0 +1,68 @@
+{# Macros compartidos. Importar siempre "with context" (necesitan request / current_user). #}
+
+{% macro csrf() -%}
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+{%- endmacro %}
+
+{% macro estado(nombre) -%}
+<span class="estado estado-{{ nombre|estado_slug }}">{{ nombre }}</span>
+{%- endmacro %}
+
+{# Botón de cambio de estado (formulario AJAX). #}
+{% macro boton_estado(orden, destino, pequeno=true) -%}
+{% set cfg = {
+  'En Proceso': ('play-fill', 'Iniciar trabajo', 'btn-primary'),
+  'Completado': ('check2-circle', 'Marcar completado', 'btn-success'),
+  'Entregado': ('box-seam', 'Marcar entregado', 'btn-success'),
+  'Cancelado': ('x-circle', 'Cancelar orden', 'btn-outline-danger'),
+  'Pendiente': ('arrow-counterclockwise', 'Regresar a pendiente', 'btn-glass')
+}[destino] %}
+<form method="post" class="d-inline" data-ajax data-on-success="reload"
+      action="{{ url_for('ordenes.cambiar_estado_orden', id_orden=orden.id_orden) }}"
+      {% if destino in ('Cancelado', 'Pendiente') %}data-confirm="¿Cambiar la orden {{ orden.folio }} a «{{ destino }}»?" data-confirm-boton="Sí, cambiar"{% if destino == 'Cancelado' %} data-peligro{% endif %}{% endif %}>
+  {{ csrf() }}
+  <input type="hidden" name="estado" value="{{ destino }}">
+  <button type="submit" class="btn {{ cfg[2] }}{% if pequeno %} btn-sm{% endif %}" title="{{ cfg[1] }}">
+    <i class="bi bi-{{ cfg[0] }}"></i><span>{{ cfg[1] }}</span>
+  </button>
+</form>
+{%- endmacro %}
+
+{# Estado vacío ilustrado. Usa {% call vacio(...) %} para insertar botones. #}
+{% macro vacio(icono, titulo, texto) -%}
+<div class="vacio">
+  <div class="ilustracion"><i class="bi bi-{{ icono }}"></i></div>
+  <h3>{{ titulo }}</h3>
+  <p>{{ texto }}</p>
+  {% if caller %}{{ caller() }}{% endif %}
+</div>
+{%- endmacro %}
+
+{# Paginación que conserva los filtros de la URL actual. #}
+{% macro paginacion(pag) -%}
+{% if pag.total > 0 %}
+{% set base = request.args.to_dict() %}
+<nav class="paginacion" aria-label="Paginación">
+  <div class="info">Mostrando {{ pag.desde }}–{{ pag.hasta }} de {{ pag.total }}</div>
+  {% if pag.paginas > 1 %}
+  <div class="pasos">
+    {% if pag.tiene_anterior %}
+      {% set _ = base.update({'page': pag.pagina - 1, 'partial': none}) %}
+      <a href="{{ url_for(request.endpoint, **base) }}" data-pagina aria-label="Anterior"><i class="bi bi-chevron-left"></i></a>
+    {% else %}<span class="pg off"><i class="bi bi-chevron-left"></i></span>{% endif %}
+    {% for n in pag.paginas_visibles() %}
+      {% if n is none %}<span class="pg off">…</span>
+      {% else %}
+        {% set _ = base.update({'page': n, 'partial': none}) %}
+        <a href="{{ url_for(request.endpoint, **base) }}" data-pagina class="{{ 'activa' if n == pag.pagina }}"{% if n == pag.pagina %} aria-current="page"{% endif %}>{{ n }}</a>
+      {% endif %}
+    {% endfor %}
+    {% if pag.tiene_siguiente %}
+      {% set _ = base.update({'page': pag.pagina + 1, 'partial': none}) %}
+      <a href="{{ url_for(request.endpoint, **base) }}" data-pagina aria-label="Siguiente"><i class="bi bi-chevron-right"></i></a>
+    {% else %}<span class="pg off"><i class="bi bi-chevron-right"></i></span>{% endif %}
+  </div>
+  {% endif %}
+</nav>
+{% endif %}
+{%- endmacro %}
