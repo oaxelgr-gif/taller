@@ -8,6 +8,11 @@
   <meta name="theme-color" content="#060a13">
   <title>{% block title %}Panel{% endblock %} · {{ TALLER_NOMBRE }}</title>
   <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='img/favicon.svg') }}">
+  <link rel="manifest" href="{{ url_for('static', filename='manifest.json') }}">
+  <link rel="apple-touch-icon" href="{{ url_for('static', filename='img/apple-touch-icon.png') }}">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Taller">
   <script>
     (function () {
       var t = "dark";
@@ -27,7 +32,10 @@
   {% block head %}{% endblock %}
 </head>
 <body>
-  <div class="mesh-bg" aria-hidden="true"><span></span><span></span></div>
+  <div class="mesh-bg" aria-hidden="true">
+    <div class="mesh-bg-watermark"></div>
+    <span></span><span></span>
+  </div>
 
   {% block body %}
   {% macro nav_item(endpoints, url, icono, texto) -%}
@@ -40,7 +48,8 @@
     <aside class="sidebar glass-strong" id="sidebar" aria-label="Menú principal">
       <div class="brand">
         <div class="brand-logo" style="padding:0; overflow:hidden; border: 1.5px solid var(--glass-border-strong); background: transparent;">
-          <img src="{{ url_for('static', filename='img/logo.jpg') }}" alt="Logo" style="width:100%; height:100%; object-fit:cover; border-radius:inherit;">
+          <img src="{{ url_for('static', filename='img/logo_blanco.png') }}" alt="Logo" class="logo-theme-dark" style="width:100%; height:100%; object-fit:contain; border-radius:inherit; padding:4px;">
+          <img src="{{ url_for('static', filename='img/logo_negro.png') }}" alt="Logo" class="logo-theme-light" style="width:100%; height:100%; object-fit:contain; border-radius:inherit; padding:4px;">
         </div>
         <div class="brand-name">{{ TALLER_NOMBRE }}<small>Gestión de taller</small></div>
       </div>
@@ -59,6 +68,7 @@
           {{ nav_item(['admin.comisiones', 'admin.detalle_corte'], url_for('admin.comisiones'), 'cash-coin', 'Comisiones y cortes') }}
           {{ nav_item(['reportes.financiero'], url_for('reportes.financiero'), 'graph-up-arrow', 'Reportes financieros') }}
           {{ nav_item(['admin.usuarios'], url_for('admin.usuarios'), 'person-gear', 'Usuarios') }}
+          {{ nav_item(['red.conectar'], url_for('red.conectar'), 'qr-code', 'Conectar dispositivos') }}
         {% else %}
           <div class="nav-section">Mi taller</div>
           {{ nav_item(['mecanico.dashboard'], url_for('mecanico.dashboard'), 'speedometer2', 'Mi panel') }}
@@ -69,6 +79,8 @@
           {{ nav_item(['clientes.vehiculos'], url_for('clientes.vehiculos'), 'car-front', 'Vehículos') }}
           <div class="nav-section">Pagos</div>
           {{ nav_item(['mecanico.cortes', 'mecanico.detalle_corte'], url_for('mecanico.cortes'), 'cash-coin', 'Mis cortes') }}
+          <div class="nav-section">Red</div>
+          {{ nav_item(['red.conectar'], url_for('red.conectar'), 'qr-code', 'Conectar dispositivos') }}
         {% endif %}
       </nav>
 

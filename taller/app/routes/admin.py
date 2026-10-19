@@ -17,7 +17,14 @@ from ..models import (
     Servicio,
     Usuario,
 )
-from ..services import ReglaNegocioError, calcular_pre_corte, cerrar_corte, kpis_admin, mecanicos_activos
+from ..services import (
+    ReglaNegocioError,
+    calcular_pre_corte,
+    cerrar_corte,
+    kpis_admin,
+    mecanicos_activos,
+    porcentaje_mecanico,
+)
 from ..utils import (
     Paginacion,
     admin_required,
@@ -427,10 +434,7 @@ def cerrar_corte_ruta():
     try:
         id_mecanico, inicio, fin, porcentaje = _leer_parametros_corte(datos)
         if porcentaje is None:
-            mecanico = db.session.get(Usuario, id_mecanico)
-            porcentaje = mecanico.porcentaje_comision_defecto if mecanico else None
-            if porcentaje is None:
-                porcentaje = Decimal("15.00")
+            porcentaje = porcentaje_mecanico(db.session.get(Usuario, id_mecanico))
         corte = cerrar_corte(id_mecanico, inicio, fin, porcentaje, current_user)
 
         # Si el usuario vio un total en pantalla, debe coincidir con el que se congela.

@@ -1,0 +1,14 @@
+Carpeta opcional para instalar SIN descargar de internet.
+
+Si pones aquí alguno de estos archivos, el instalador los usa en lugar
+de descargarlos:
+
+  python-3.12.10-embed-amd64.zip      (python.org > Windows embeddable package 64-bit)
+  get-pip.py                          (https://bootstrap.pypa.io/get-pip.py)
+  postgresql-16.x-x-windows-x64.exe   (enterprisedb.com > PostgreSQL 16 Windows x86-64)
+  wheels\                             (librerías de Python descargadas con:
+                                       pip download -r requirements.txt -d wheels
+                                       --platform win_amd64 --python-version 3.12
+                                       --only-binary=:all:)
+
+Si la carpeta está vacía, el instalador descarga todo automáticamente.

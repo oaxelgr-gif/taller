@@ -1,5 +1,7 @@
 """Clientes y vehículos: CRUD, búsqueda AJAX y alta rápida."""
-from flask import Blueprint, current_app, jsonify, render_template, request, url_for
+import os
+
+from flask import Blueprint, current_app, jsonify, render_template, request, send_from_directory, url_for
 from flask_login import current_user, login_required
 from sqlalchemy import func, or_
 from sqlalchemy.exc import IntegrityError
@@ -338,6 +340,17 @@ def eliminar_anomalia(id_vehiculo, id_anomalia):
         current_app.logger.exception("Error al eliminar anomalia")
         return responder(False, "No se pudo eliminar el registro.", destino, status=500)
 
+
+
+@bp.route("/fotos/vehiculos/<nombre>")
+@login_required
+@staff_required
+def foto_vehiculo(nombre):
+    """Sirve fotos de anomalías sólo a usuarios con sesión iniciada."""
+    carpeta = os.path.join(current_app.config["UPLOAD_FOLDER"], "vehiculos")
+    respuesta = send_from_directory(carpeta, os.path.basename(nombre), max_age=3600)
+    respuesta.headers["Cache-Control"] = "private, max-age=3600"
+    return respuesta
 
 
 @bp.route("/api/rapido", methods=["POST"])

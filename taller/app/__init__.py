@@ -1,7 +1,7 @@
 """Fábrica de la aplicación Flask (SGT-Mecánico)."""
 import os
 
-from flask import Flask, jsonify, render_template, request
+from flask import Flask, jsonify, render_template, request, url_for
 from flask_login import LoginManager
 from flask_sqlalchemy import SQLAlchemy
 from flask_wtf.csrf import CSRFError, CSRFProtect
@@ -20,10 +20,15 @@ def create_app(config_object="config.Config"):
     app = Flask(__name__)
     app.config.from_object(config_object)
 
-    if app.config.get("SECRET_KEY") == "clave-de-desarrollo-cambiala":
-        app.logger.warning(
-            "SECRET_KEY por defecto: define una clave propia en el archivo .env antes de usar el sistema en producción."
-        )
+    if app.config.get("SECRET_KEY") in (None, "", "clave-de-desarrollo-cambiala",
+                                        "cambia-esto-por-una-cadena-larga-y-aleatoria"):
+        if os.getenv("FLASK_DEBUG", "0") == "1" or app.config.get("TESTING"):
+            app.logger.warning("SECRET_KEY por defecto: sólo aceptable en desarrollo.")
+        else:
+            raise RuntimeError(
+                "Falta SECRET_KEY en el archivo .env. Genera una con: "
+                "python -c \"import secrets; print(secrets.token_hex(32))\""
+            )
 
     db.init_app(app)
     login_manager.init_app(app)
@@ -53,6 +58,9 @@ def create_app(config_object="config.Config"):
     app.jinja_env.filters["fechahora"] = formato_fecha_hora
     app.jinja_env.filters["inputdt"] = formato_input_datetime
     app.jinja_env.filters["porcentaje"] = formato_porcentaje
+    app.jinja_env.filters["foto_url"] = lambda ruta: (
+        url_for("clientes.foto_vehiculo", nombre=os.path.basename(ruta)) if ruta else ""
+    )
     app.jinja_env.filters["estado_slug"] = lambda e: (
         (e or "").lower().replace(" ", "-").replace("á", "a").replace("é", "e")
     )

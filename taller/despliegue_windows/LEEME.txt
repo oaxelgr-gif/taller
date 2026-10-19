@@ -1,0 +1,69 @@
+=====================================================================
+  SGT TALLER - INSTALACIÓN EN WINDOWS
+=====================================================================
+
+REQUISITOS
+  - Windows 10 u 11 de 64 bits (funciona con 4 GB de RAM).
+  - 1.5 GB libres en el disco C:.
+  - Internet SÓLO durante la instalación (descarga Python y PostgreSQL,
+    unos 400 MB). Después el sistema funciona sin internet.
+  - Que la computadora esté conectada a la red (WiFi o cable) del taller.
+
+
+INSTALAR (PRIMERA VEZ)
+  1. Clic derecho sobre el ZIP > "Extraer todo..." > Extraer.
+  2. Abre la carpeta extraída y haz doble clic en
+     INSTALAR_O_ACTUALIZAR.bat
+  3. Acepta la ventana de permisos de administrador.
+  4. Escribe el nombre del taller y crea el usuario y la contraseña del
+     administrador cuando te lo pida.
+  5. Al terminar se abre el inicio de sesión en el navegador.
+
+  Se instala en C:\SGT-Taller y crea:
+    - Ícono "SGT Taller" en el escritorio (abre el sistema).
+    - Carpeta "SGT Taller" en el menú Inicio con:
+        Conectar celulares (QR), Detener servidor, Respaldos.
+    - Arranque automático: el servidor se enciende solo al iniciar
+      Windows, para que los celulares siempre puedan entrar.
+
+
+ACTUALIZAR A UNA VERSIÓN NUEVA
+  Extrae el ZIP nuevo y ejecuta otra vez INSTALAR_O_ACTUALIZAR.bat.
+  Se conservan la base de datos, las fotos y la configuración, y antes
+  de actualizar se guarda un respaldo automático.
+
+
+ENTRAR DESDE CELULARES Y OTRAS COMPUTADORAS
+  1. Conecta el celular al MISMO WiFi que la computadora servidor.
+  2. En el sistema abre el menú "Conectar dispositivos": verás la
+     dirección (por ejemplo http://192.168.1.50:5000) y un código QR.
+  3. Escanea el QR con la cámara del celular e inicia sesión.
+  4. Opcional: "Agregar a pantalla de inicio" para usarlo como app.
+  5. Puedes imprimir el cartel con el QR y pegarlo en el taller.
+
+  Recomendado: pide que en el router se le asigne IP fija a la
+  computadora servidor, así el QR nunca cambia.
+
+
+DÓNDE QUEDA CADA COSA (C:\SGT-Taller)
+  app\              el sistema y su configuración (.env)
+  datos\respaldos\  respaldo automático diario de la base de datos
+                    (se guardan los últimos 30)
+  datos\uploads\    fotos de los vehículos
+  datos\logs\       registros (servidor.log, instalaciones)
+  python\, pgsql\   Python y PostgreSQL usados por el sistema
+
+  Copia de seguridad completa: copia periódicamente las carpetas
+  datos\respaldos y datos\uploads a una USB o a la nube.
+
+
+SI ALGO FALLA
+  - El ícono no abre el sistema: espera 10 segundos y vuelve a darle
+    clic. Si sigue, revisa C:\SGT-Taller\datos\logs\servidor.log
+  - El celular no conecta: que esté en el mismo WiFi (no datos móviles
+    ni red de invitados) y que la computadora esté encendida.
+  - Sin internet no descarga PostgreSQL: descarga el instalador
+    "PostgreSQL 16 Windows x86-64" de enterprisedb.com, ponlo en la
+    carpeta "instaladores" de este paquete y vuelve a ejecutar.
+  - Puedes repetir INSTALAR_O_ACTUALIZAR.bat las veces que sea
+    necesario: continúa donde se quedó y no borra datos.

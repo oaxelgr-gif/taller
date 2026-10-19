@@ -3,7 +3,7 @@ from datetime import timedelta
 from decimal import ROUND_HALF_UP, Decimal
 
 from flask import current_app
-from sqlalchemy import Date, cast, func
+from sqlalchemy import Date, case, cast, func
 
 from . import db
 from .models import (
@@ -23,6 +23,7 @@ from .models import (
 from .utils import ahora, hoy, limites_dias, rango_mes, rango_semana
 
 CENTAVOS = Decimal("0.01")
+PORCENTAJE_DEFECTO = Decimal("15.00")
 
 # Transiciones permitidas para un mecánico (sólo hacia adelante)
 TRANSICIONES_MECANICO = {
@@ -60,8 +61,8 @@ def cambiar_estado(orden, nuevo_estado, usuario):
         raise ReglaNegocioError(
             f"No tienes permiso para mover la orden de «{orden.estado}» a «{nuevo_estado}»."
         )
-    if nuevo_estado in ESTADOS_COBRABLES and not orden.detalles:
-        raise ReglaNegocioError("Agrega al menos un servicio a la orden antes de completarla.")
+    if nuevo_estado in ESTADOS_COBRABLES and not (orden.detalles or orden.piezas):
+        raise ReglaNegocioError("Agrega al menos un servicio o una pieza a la orden antes de completarla.")
 
     anterior = orden.estado
     orden.estado = nuevo_estado
@@ -106,6 +107,62 @@ def calcular_comision(total, porcentaje):
     return (Decimal(total) * Decimal(porcentaje) / Decimal(100)).quantize(CENTAVOS, rounding=ROUND_HALF_UP)
 
 
+# ---------------------------------------------------------------------------
+# Regla única de la base de comisión
+#   La comisión se calcula SÓLO sobre mano de obra (servicios); las piezas no
+#   generan comisión. Excepción: órdenes antiguas sin detalle de servicios ni
+#   piezas (total capturado directo) usan el total como base.
+#   Toda pantalla que muestre comisiones debe usar estas funciones.
+# ---------------------------------------------------------------------------
+def base_comision(servicios, piezas, total):
+    servicios = Decimal(str(servicios or 0))
+    piezas = Decimal(str(piezas or 0))
+    if servicios > 0 or piezas > 0:
+        return servicios.quantize(CENTAVOS)
+    return Decimal(str(total or 0)).quantize(CENTAVOS)
+
+
+def base_comision_orden(orden):
+    return base_comision(orden.subtotal_servicios, orden.subtotal_piezas, orden.total_costo)
+
+
+def porcentaje_orden(orden):
+    """Porcentaje del corte si la orden ya se liquidó; si no, el vigente del mecánico."""
+    if orden.corte is not None:
+        return Decimal(str(orden.corte.porcentaje_aplicado))
+    return porcentaje_mecanico(orden.mecanico)
+
+
+def porcentaje_mecanico(usuario):
+    pct = usuario.porcentaje_comision_defecto if usuario is not None else None
+    return Decimal(str(pct)) if pct is not None else PORCENTAJE_DEFECTO
+
+
+def _con_base_comision_sql(consulta):
+    """Agrega a `consulta` (sobre OrdenTrabajo) los subtotales por orden y devuelve
+    (consulta, expresion_base) para sumar comisiones en SQL con la misma regla."""
+    serv = (
+        db.session.query(
+            DetalleOrdenServicio.id_orden.label("id_orden"),
+            func.sum(DetalleOrdenServicio.subtotal).label("monto"),
+        ).group_by(DetalleOrdenServicio.id_orden).subquery()
+    )
+    piez = (
+        db.session.query(
+            DetalleOrdenPieza.id_orden.label("id_orden"),
+            func.sum(DetalleOrdenPieza.subtotal).label("monto"),
+        ).group_by(DetalleOrdenPieza.id_orden).subquery()
+    )
+    s = func.coalesce(serv.c.monto, 0)
+    p = func.coalesce(piez.c.monto, 0)
+    consulta = (
+        consulta.outerjoin(serv, serv.c.id_orden == OrdenTrabajo.id_orden)
+        .outerjoin(piez, piez.c.id_orden == OrdenTrabajo.id_orden)
+    )
+    expresion = case((s + p > 0, s), else_=func.coalesce(OrdenTrabajo.total_costo, 0))
+    return consulta, expresion
+
+
 def _query_ordenes_corte(id_mecanico, inicio, fin):
     desde, hasta = limites_dias(inicio, fin)
     return (
@@ -129,9 +186,7 @@ def calcular_pre_corte(id_mecanico, inicio, fin, porcentaje=None):
         raise ReglaNegocioError("La fecha final no puede ser anterior a la inicial.")
 
     if porcentaje is None:
-        porcentaje = mecanico.porcentaje_comision_defecto
-        if porcentaje is None:
-            porcentaje = Decimal("15.00")
+        porcentaje = porcentaje_mecanico(mecanico)
     porcentaje = Decimal(porcentaje)
     if porcentaje < 0 or porcentaje > 100:
         raise ReglaNegocioError("El porcentaje debe estar entre 0 y 100.")
@@ -144,7 +199,7 @@ def calcular_pre_corte(id_mecanico, inicio, fin, porcentaje=None):
     total = sum((Decimal(str(o.total_costo or 0)) for o in ordenes), Decimal("0.00")).quantize(CENTAVOS)
     total_servicios = sum((Decimal(str(o.subtotal_servicios or 0)) for o in ordenes), Decimal("0.00")).quantize(CENTAVOS)
     total_piezas = sum((Decimal(str(o.subtotal_piezas or 0)) for o in ordenes), Decimal("0.00")).quantize(CENTAVOS)
-    base_comision = total_servicios if (total_servicios > 0 or total_piezas > 0) else total
+    base = sum((base_comision_orden(o) for o in ordenes), Decimal("0.00")).quantize(CENTAVOS)
 
     desde, hasta = limites_dias(inicio, fin)
     en_curso = (
@@ -162,9 +217,9 @@ def calcular_pre_corte(id_mecanico, inicio, fin, porcentaje=None):
         "total": total,
         "total_servicios": total_servicios,
         "total_piezas": total_piezas,
-        "base_comision": base_comision,
+        "base_comision": base,
         "porcentaje": porcentaje,
-        "comision": calcular_comision(base_comision, porcentaje),
+        "comision": calcular_comision(base, porcentaje),
         "cantidad": len(ordenes),
         "en_curso": en_curso,
     }
@@ -197,8 +252,7 @@ def cerrar_corte(id_mecanico, inicio, fin, porcentaje, admin):
         )
 
     total = sum((Decimal(str(o.total_costo or 0)) for o in ordenes), Decimal("0.00")).quantize(CENTAVOS)
-    total_servicios = sum((Decimal(str(o.subtotal_servicios or 0)) for o in ordenes), Decimal("0.00")).quantize(CENTAVOS)
-    base_comision = total_servicios if (total_servicios > 0 or sum((Decimal(str(o.subtotal_piezas or 0)) for o in ordenes), Decimal("0.00")) > 0) else total
+    base = sum((base_comision_orden(o) for o in ordenes), Decimal("0.00")).quantize(CENTAVOS)
 
     corte = CorteSemanal(
         id_mecanico=id_mecanico,
@@ -206,7 +260,7 @@ def cerrar_corte(id_mecanico, inicio, fin, porcentaje, admin):
         fecha_fin=fin,
         total_reparaciones_monto=total,
         porcentaje_aplicado=porcentaje,
-        monto_comision_pagar=calcular_comision(base_comision, porcentaje),
+        monto_comision_pagar=calcular_comision(base, porcentaje),
         estatus_pago="Pendiente",
         cerrado_por_admin=admin.id_usuario,
         cantidad_ordenes=len(ordenes),
@@ -224,7 +278,7 @@ def cerrar_corte(id_mecanico, inicio, fin, porcentaje, admin):
 # ---------------------------------------------------------------------------
 def _fila_pct():
     """Porcentaje efectivo por orden: el del corte si ya se liquidó; si no, el vigente del mecánico."""
-    return func.coalesce(CorteSemanal.porcentaje_aplicado, Usuario.porcentaje_comision_defecto, 0)
+    return func.coalesce(CorteSemanal.porcentaje_aplicado, Usuario.porcentaje_comision_defecto, PORCENTAJE_DEFECTO)
 
 
 def kpis_admin(anio, mes):
@@ -241,12 +295,13 @@ def kpis_admin(anio, mes):
             func.coalesce(func.sum(OrdenTrabajo.total_costo), 0), func.count(OrdenTrabajo.id_orden)
         ).one()
     )
-    comisiones = (
+    con_base, expr_base = _con_base_comision_sql(
         base.join(Usuario, Usuario.id_usuario == OrdenTrabajo.id_mecanico)
         .outerjoin(CorteSemanal, CorteSemanal.id_corte == OrdenTrabajo.id_corte)
-        .with_entities(func.coalesce(func.sum(OrdenTrabajo.total_costo * _fila_pct() / 100), 0))
-        .scalar()
     )
+    comisiones = con_base.with_entities(
+        func.coalesce(func.sum(func.round(expr_base * _fila_pct() / 100, 2)), 0)
+    ).scalar()
     ingresos = Decimal(ingresos).quantize(CENTAVOS)
     comisiones = Decimal(comisiones).quantize(CENTAVOS, rounding=ROUND_HALF_UP)
 
@@ -317,9 +372,7 @@ def kpis_mecanico(usuario):
     lunes, domingo = rango_semana()
     desde, hasta = limites_dias(lunes, domingo)
     fecha = _fecha_efectiva()
-    porcentaje = usuario.porcentaje_comision_defecto
-    if porcentaje is None:
-        porcentaje = Decimal("15.00")
+    porcentaje = porcentaje_mecanico(usuario)
 
     activos = (
         OrdenTrabajo.query
@@ -334,19 +387,17 @@ def kpis_mecanico(usuario):
     ingresos_semana = semana.with_entities(
         func.coalesce(func.sum(OrdenTrabajo.total_costo), 0)
     ).scalar()
-    sin_liquidar_semana = semana.filter(OrdenTrabajo.liquidado_en_corte.is_(False)).with_entities(
-        func.coalesce(func.sum(OrdenTrabajo.total_costo), 0)
-    ).scalar()
-    sin_liquidar_total = (
-        OrdenTrabajo.query
-        .filter(
+    # La comisión estimada usa la misma base que el corte (sólo mano de obra).
+    q_semana, expr = _con_base_comision_sql(semana.filter(OrdenTrabajo.liquidado_en_corte.is_(False)))
+    sin_liquidar_semana = q_semana.with_entities(func.coalesce(func.sum(expr), 0)).scalar()
+    q_total, expr = _con_base_comision_sql(
+        OrdenTrabajo.query.filter(
             OrdenTrabajo.id_mecanico == usuario.id_usuario,
             OrdenTrabajo.estado.in_(ESTADOS_COBRABLES),
             OrdenTrabajo.liquidado_en_corte.is_(False),
         )
-        .with_entities(func.coalesce(func.sum(OrdenTrabajo.total_costo), 0))
-        .scalar()
     )
+    sin_liquidar_total = q_total.with_entities(func.coalesce(func.sum(expr), 0)).scalar()
     concluidas_semana = semana.count()
     return {
         "lunes": lunes,
@@ -407,9 +458,7 @@ def reporte_financiero(inicio, fin, id_mecanico=None):
 
     total_comisiones = Decimal("0.00")
     for o in ordenes:
-        pct = o.corte.porcentaje_aplicado if o.corte else (o.mecanico.porcentaje_comision_defecto or Decimal("15.00"))
-        base = o.subtotal_servicios if (o.subtotal_servicios > 0 or o.subtotal_piezas > 0) else o.total_costo
-        total_comisiones += (Decimal(str(base or 0)) * Decimal(str(pct)) / Decimal(100)).quantize(CENTAVOS, rounding=ROUND_HALF_UP)
+        total_comisiones += calcular_comision(base_comision_orden(o), porcentaje_orden(o))
 
     ganancia_neta = (total_facturado - total_comisiones).quantize(CENTAVOS)
     cantidad_ordenes = len(ordenes)
@@ -486,9 +535,7 @@ def reporte_financiero(inicio, fin, id_mecanico=None):
         item["total_servicios"] += o.subtotal_servicios
         item["total_piezas"] += o.subtotal_piezas
         item["total_facturado"] += Decimal(str(o.total_costo or 0))
-        pct = o.corte.porcentaje_aplicado if o.corte else (mec.porcentaje_comision_defecto or Decimal("15.00"))
-        base = o.subtotal_servicios if (o.subtotal_servicios > 0 or o.subtotal_piezas > 0) else o.total_costo
-        item["comision_generada"] += (Decimal(str(base or 0)) * Decimal(str(pct)) / Decimal(100)).quantize(CENTAVOS, rounding=ROUND_HALF_UP)
+        item["comision_generada"] += calcular_comision(base_comision_orden(o), porcentaje_orden(o))
 
     desglose_mecanicos = sorted(por_mecanico.values(), key=lambda x: x["total_facturado"], reverse=True)
 

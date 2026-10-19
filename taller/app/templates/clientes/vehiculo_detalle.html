@@ -55,8 +55,8 @@
           <div class="glass panel p-2 h-100 border">
             {% if a.tiene_foto %}
             <div class="text-center mb-2 position-relative" style="max-height:220px; overflow:hidden; border-radius:10px; background:rgba(0,0,0,0.2);">
-              <a href="{{ url_for('static', filename=a.foto_path) }}" target="_blank" data-lightbox-img title="Ver imagen completa">
-                <img src="{{ url_for('static', filename=a.foto_path) }}" alt="Foto anomalía" class="img-fluid rounded" style="max-height:210px; width:100%; object-fit:cover; cursor:zoom-in;">
+              <a href="{{ a.foto_path|foto_url }}" target="_blank" data-lightbox-img title="Ver imagen completa">
+                <img src="{{ a.foto_path|foto_url }}" alt="Foto anomalía" class="img-fluid rounded" style="max-height:210px; width:100%; object-fit:cover; cursor:zoom-in;">
               </a>
             </div>
             {% else %}

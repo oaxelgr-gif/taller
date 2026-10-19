@@ -32,36 +32,48 @@ if [ ! -f "app/static/vendor/bootstrap/bootstrap.min.css" ]; then
     flask --app run descargar-vendor || true
 fi
 
-# Cargar datos de demostración si la base está vacía
+# Primer arranque: si la base está vacía se crea SOLO el administrador.
+# Los datos de demostración (mecánicos con contraseña conocida y catálogo) se cargan
+# únicamente con CARGAR_DEMO=1, para no dejar cuentas débiles en el taller real.
 python -c "
+import os, secrets
 from app import create_app, db
 from app.models import Usuario
 app = create_app()
 with app.app_context():
     if Usuario.query.first() is None:
-        print('>> Base vacía detectada. Cargando datos iniciales demo...')
         from app.cli import _crear_usuario, _asegurar_roles, ROL_ADMIN, ROL_MECANICO, Servicio
         from decimal import Decimal
         _asegurar_roles()
-        _crear_usuario('Administrador Principal', 'admin', 'Admin1234', ROL_ADMIN, 0, correo='admin@taller.local')
-        _crear_usuario('Carlos Ramírez', 'carlos', 'Mecanico123', ROL_MECANICO, 15, correo='carlos@taller.local')
-        _crear_usuario('Luis Hernández', 'luis', 'Mecanico123', ROL_MECANICO, 18, correo='luis@taller.local')
-        catalogo = [
-            ('Cambio de aceite y filtro', 'Aceite sintético 5W-30 y filtro', 650),
-            ('Afinación mayor', 'Bujías, filtros, limpieza de inyectores', 1850),
-            ('Cambio de balatas delanteras', 'Incluye rectificado de discos', 950),
-            ('Alineación y balanceo', '4 ruedas', 700),
-            ('Diagnóstico con escáner', 'Lectura y borrado de códigos', 400),
-            ('Cambio de batería', 'Mano de obra (batería aparte)', 250),
-            ('Cambio de banda de distribución', 'Incluye tensor y bomba de agua', 3200),
-            ('Revisión de suspensión', 'Amortiguadores, rótulas y terminales', 800),
-            ('Servicio de A/C', 'Carga de gas y revisión de fugas', 1100),
-            ('Cambio de embrague', 'Kit completo', 4200),
-        ]
-        for n, d, c in catalogo:
-            db.session.add(Servicio(nombre=n, descripcion=d, costo_base=Decimal(c), activo=True))
-        db.session.commit()
-        print('>> Usuarios base creados: admin / Admin1234, carlos / Mecanico123, luis / Mecanico123')
+        if os.getenv('CARGAR_DEMO', '0') == '1':
+            print('>> CARGAR_DEMO=1: cargando datos de demostración...')
+            _crear_usuario('Administrador Principal', 'admin', 'Admin1234', ROL_ADMIN, 0, correo='admin@taller.local')
+            _crear_usuario('Carlos Ramírez', 'carlos', 'Mecanico123', ROL_MECANICO, 15, correo='carlos@taller.local')
+            _crear_usuario('Luis Hernández', 'luis', 'Mecanico123', ROL_MECANICO, 18, correo='luis@taller.local')
+            catalogo = [
+                ('Cambio de aceite y filtro', 'Aceite sintético 5W-30 y filtro', 650),
+                ('Afinación mayor', 'Bujías, filtros, limpieza de inyectores', 1850),
+                ('Cambio de balatas delanteras', 'Incluye rectificado de discos', 950),
+                ('Alineación y balanceo', '4 ruedas', 700),
+                ('Diagnóstico con escáner', 'Lectura y borrado de códigos', 400),
+                ('Cambio de batería', 'Mano de obra (batería aparte)', 250),
+                ('Cambio de banda de distribución', 'Incluye tensor y bomba de agua', 3200),
+                ('Revisión de suspensión', 'Amortiguadores, rótulas y terminales', 800),
+                ('Servicio de A/C', 'Carga de gas y revisión de fugas', 1100),
+                ('Cambio de embrague', 'Kit completo', 4200),
+            ]
+            for n, d, c in catalogo:
+                db.session.add(Servicio(nombre=n, descripcion=d, costo_base=Decimal(c), activo=True))
+            db.session.commit()
+            print('>> DEMO: admin / Admin1234, carlos / Mecanico123, luis / Mecanico123')
+        else:
+            password = os.getenv('ADMIN_PASSWORD') or (secrets.token_urlsafe(9) + '7a')
+            _crear_usuario('Administrador Principal', 'admin', password, ROL_ADMIN, 0)
+            db.session.commit()
+            print('>> Base vacía: se creó el usuario admin.')
+            if not os.getenv('ADMIN_PASSWORD'):
+                print('>> Contraseña temporal de admin: ' + password)
+                print('>> Inicia sesión y cámbiala con el botón de la llave (Cambiar contraseña).')
 "
 
 echo ">> Arrancando servidor de producción Gunicorn (alta concurrencia y fluidez)..."

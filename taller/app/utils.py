@@ -416,7 +416,7 @@ def guardar_foto_vehiculo(archivo):
     if ext not in permitidas:
         raise ValueError(f"Formato no permitido. Usa {', '.join(sorted(permitidas))}.")
 
-    carpeta_destino = os.path.join(current_app.static_folder, "uploads", "vehiculos")
+    carpeta_destino = os.path.join(current_app.config["UPLOAD_FOLDER"], "vehiculos")
     os.makedirs(carpeta_destino, exist_ok=True)
 
     nombre_archivo = f"{uuid.uuid4().hex}.jpg"
@@ -436,16 +436,23 @@ def guardar_foto_vehiculo(archivo):
     return f"uploads/vehiculos/{nombre_archivo}"
 
 
+def ruta_foto_vehiculo(foto_path):
+    """Ruta absoluta en disco de una foto ('uploads/vehiculos/<archivo>.jpg') o None si no es válida."""
+    import os
+    nombre = os.path.basename(foto_path or "")
+    if not nombre or not (foto_path or "").replace("\\", "/").startswith("uploads/vehiculos/"):
+        return None
+    return os.path.join(current_app.config["UPLOAD_FOLDER"], "vehiculos", nombre)
+
+
 def eliminar_foto_vehiculo(foto_path):
     """Elimina físicamente una foto del disco si existe."""
     import os
     if not foto_path:
         return
-    # Prevenir path traversal
-    limpio = os.path.normpath(foto_path).lstrip("/\\")
-    if not limpio.startswith("uploads/vehiculos/"):
+    ruta_absoluta = ruta_foto_vehiculo(foto_path)
+    if ruta_absoluta is None:
         return
-    ruta_absoluta = os.path.join(current_app.static_folder, limpio)
     if os.path.exists(ruta_absoluta):
         try:
             os.remove(ruta_absoluta)

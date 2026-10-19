@@ -9,8 +9,9 @@ services:
       POSTGRES_PASSWORD: ${DB_PASSWORD:-taller_pass}
     volumes:
       - taller_postgres_data:/var/lib/postgresql/data
+    # Sólo accesible desde esta computadora (pgAdmin, psql); no desde la red del taller.
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-taller_user} -d ${DB_NAME:-taller_mecanico}"]
       interval: 5s
@@ -30,7 +31,7 @@ services:
       db:
         condition: service_healthy
     environment:
-      SECRET_KEY: ${SECRET_KEY:-60b117f28e1a9c18e8376c3b8263345f97ec0db9d5c45787234dbc6a63df9e32}
+      SECRET_KEY: ${SECRET_KEY:?Define SECRET_KEY en el archivo .env}
       FLASK_DEBUG: 0
       DB_HOST: db
       DB_PORT: 5432
@@ -41,10 +42,19 @@ services:
       TALLER_NOMBRE: ${TALLER_NOMBRE:-SGT Mecánico}
       PORT: 5000
       SESSION_COOKIE_SECURE: 0
+      UPLOAD_FOLDER: /app/uploads
+      # IP de esta computadora en la red local (la detecta iniciar.sh) para el QR de celulares
+      IP_SERVIDOR: ${IP_SERVIDOR:-}
+      PUERTO_PUBLICO: ${PUERTO_WEB:-5000}
+      # 1 = cargar usuarios y catálogo de demostración en una base vacía (sólo para pruebas)
+      CARGAR_DEMO: ${CARGAR_DEMO:-0}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
     ports:
-      - "5000:5000"
+      - "${PUERTO_WEB:-5000}:5000"
     volumes:
       - ./app/static/img:/app/app/static/img
+      # Fotos de anomalías: fuera del contenedor para que sobrevivan a reconstrucciones
+      - ./uploads:/app/uploads
     networks:
       - taller_network
 

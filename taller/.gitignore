@@ -3,6 +3,9 @@ venv/
 __pycache__/
 *.pyc
 .env
+uploads/
+_respaldo_*/
 .DS_Store
 instance/
 *.log
+dist/

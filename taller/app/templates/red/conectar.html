@@ -1,0 +1,146 @@
+{% extends "base.html" %}
+{% import '_macros.html' as m with context %}
+{% block title %}Conectar dispositivos{% endblock %}
+{% block head %}
+<style>
+  .conectar-grid { display: grid; gap: 1rem; grid-template-columns: minmax(0, 1fr); }
+  @media (min-width: 992px) { .conectar-grid { grid-template-columns: minmax(0, 5fr) minmax(0, 6fr); } }
+  .cartel { text-align: center; }
+  .qr-caja { background: #fff; border-radius: 18px; padding: 14px; width: min(320px, 100%); margin: 0 auto; box-shadow: 0 8px 30px rgba(0,0,0,.25); }
+  .qr-caja svg { display: block; width: 100%; height: auto; }
+  .qr-caja svg path { fill: #0b1220; }
+  .url-grande { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: clamp(1.05rem, 4.2vw, 1.6rem); font-weight: 700; word-break: break-all; }
+  .cartel-logo { height: 64px; width: auto; }
+  .pasos { counter-reset: paso; list-style: none; padding: 0; margin: 0; }
+  .pasos li { counter-increment: paso; position: relative; padding: .55rem 0 .55rem 2.6rem; }
+  .pasos li::before { content: counter(paso); position: absolute; left: 0; top: .45rem; width: 1.9rem; height: 1.9rem; border-radius: 50%; display: grid; place-items: center; font-weight: 700; background: var(--glass-border-strong, rgba(255,255,255,.2)); }
+  .ip-opcion { display: flex; justify-content: space-between; align-items: center; gap: .5rem; padding: .5rem .75rem; border-radius: 12px; border: 1px solid var(--glass-border, rgba(255,255,255,.12)); }
+  .ip-opcion.activa { border-color: var(--bs-primary); }
+  @media print {
+    .cartel { border: none !important; padding-top: 10mm !important; }
+    .qr-caja { width: 120mm; box-shadow: none; border: 1px solid #000; }
+    .url-grande { font-size: 22pt; }
+    .cartel-logo { height: 30mm; margin: 0 auto 6mm; display: block; }
+    .cartel h2 { font-size: 26pt; }
+    .conectar-grid { display: block; }
+  }
+</style>
+{% endblock %}
+{% block content %}
+<div class="page-head no-imprimir">
+  <div>
+    <h1>Conectar dispositivos</h1>
+    <p class="sub">Abre el sistema desde celulares, tablets y otras computadoras conectadas a la misma red del taller.</p>
+  </div>
+  {% if url %}
+  <div class="page-actions">
+    <button type="button" class="btn btn-glass" data-print><i class="bi bi-printer"></i> Imprimir cartel con QR</button>
+  </div>
+  {% endif %}
+</div>
+
+{% if not url %}
+<section class="glass panel">
+  {% if en_docker %}
+  {% call m.vacio('wifi', 'Falta la dirección de esta computadora', 'Arranca el sistema con ./iniciar.sh (detecta la IP) o abre esta página una vez desde la IP de la computadora, por ejemplo http://192.168.0.10:5000, y el sistema la recordará.') %}{% endcall %}
+  {% else %}
+  {% call m.vacio('wifi-off', 'No se detectó una red local', 'Conecta este equipo al WiFi o al cable de red del taller y recarga la página.') %}{% endcall %}
+  {% endif %}
+</section>
+{% else %}
+<div class="conectar-grid">
+  <section class="glass panel cartel">
+    <img src="{{ url_for('static', filename='img/logo_negro.png') }}" alt="" class="cartel-logo solo-impresion" style="display:none">
+    <h2 class="h4 mb-1">{{ TALLER_NOMBRE }}</h2>
+    <p class="text-muted mb-3">Escanea con la cámara del celular</p>
+    <div class="qr-caja mb-3">{{ qr|safe }}</div>
+    <div class="url-grande mb-1" id="urlSistema">{{ url }}</div>
+    <p class="small text-muted mb-3 solo-red">Red WiFi: <b id="wifiTexto">la del taller</b></p>
+    <div class="d-flex flex-wrap gap-2 justify-content-center no-imprimir">
+      <button type="button" class="btn btn-primary" data-copiar="{{ url }}"><i class="bi bi-clipboard"></i> Copiar enlace</button>
+      <a class="btn btn-glass" href="{{ url_login }}" target="_blank" rel="noopener"><i class="bi bi-box-arrow-up-right"></i> Probar enlace</a>
+    </div>
+  </section>
+
+  <div class="d-flex flex-column gap-3 no-imprimir">
+    <section class="glass panel">
+      <h2 class="h6 text-uppercase text-muted mb-2">Cómo conectarse</h2>
+      <ol class="pasos">
+        <li>Conecta el celular a la <b>misma red WiFi</b> que esta computadora.</li>
+        <li>Abre la <b>cámara</b> y apunta al código QR (o escribe <code>{{ url }}</code> en el navegador).</li>
+        <li>Inicia sesión con tu usuario y contraseña.</li>
+        <li>Opcional: en el menú del navegador elige <b>«Agregar a pantalla de inicio»</b> para tenerlo como una app.</li>
+      </ol>
+    </section>
+
+    <section class="glass panel">
+      <h2 class="h6 text-uppercase text-muted mb-2">Nombre de la red WiFi (para el cartel)</h2>
+      <input type="text" class="form-control" id="wifiNombre" maxlength="40" placeholder="Ej. Taller_Ramirez" autocomplete="off">
+      <p class="small text-muted mt-2 mb-0">Sólo se usa al imprimir; no se guarda.</p>
+    </section>
+
+    {% if ips|length > 1 %}
+    <section class="glass panel">
+      <h2 class="h6 text-uppercase text-muted mb-2">Otras direcciones de este equipo</h2>
+      <p class="small text-muted">Si el QR no abre, prueba otra. La primera suele ser la correcta; las de redes virtuales no funcionan desde el celular.</p>
+      <div class="d-flex flex-column gap-2">
+        {% for opcion, enlace in alternativas %}
+        <div class="ip-opcion{{ ' activa' if opcion == ip }}">
+          <code>{{ enlace }}</code>
+          {% if opcion == ip %}<span class="badge text-bg-primary">En uso</span>
+          {% else %}<a class="btn btn-glass btn-sm" href="{{ url_for('red.conectar', ip=opcion) }}">Usar esta</a>{% endif %}
+        </div>
+        {% endfor %}
+      </div>
+    </section>
+    {% endif %}
+
+    <section class="glass panel">
+      <h2 class="h6 text-uppercase text-muted mb-2">Si no conecta</h2>
+      <ul class="small mb-0 ps-3">
+        <li>Verifica que el celular <b>no</b> esté usando datos móviles ni una red de invitados.</li>
+        <li>La computadora servidor debe estar <b>encendida</b> y con el sistema abierto (ícono del escritorio).</li>
+        <li>Si la dirección cambia seguido, pide que el router le asigne una <b>IP fija</b> a esta computadora.</li>
+        {% if url_nombre %}<li>En computadoras Windows de la misma red también puede funcionar <code>{{ url_nombre }}</code>.</li>{% endif %}
+      </ul>
+    </section>
+  </div>
+</div>
+{% endif %}
+{% endblock %}
+{% block scripts %}
+<script>
+(function () {
+  var entrada = document.getElementById("wifiNombre");
+  var texto = document.getElementById("wifiTexto");
+  if (entrada && texto) {
+    try { entrada.value = localStorage.getItem("sgt_wifi") || ""; } catch (e) {}
+    var pintar = function () {
+      texto.textContent = entrada.value.trim() || "la del taller";
+      try { localStorage.setItem("sgt_wifi", entrada.value.trim()); } catch (e) {}
+    };
+    entrada.addEventListener("input", pintar);
+    pintar();
+  }
+  document.addEventListener("click", function (e) {
+    var boton = e.target.closest("[data-copiar]");
+    if (!boton) return;
+    var valor = boton.getAttribute("data-copiar");
+    var listo = function () {
+      var original = boton.innerHTML;
+      boton.innerHTML = '<i class="bi bi-check2"></i> Copiado';
+      setTimeout(function () { boton.innerHTML = original; }, 1800);
+    };
+    if (navigator.clipboard && window.isSecureContext) {
+      navigator.clipboard.writeText(valor).then(listo);
+    } else {
+      var area = document.createElement("textarea");
+      area.value = valor; area.style.position = "fixed"; area.style.opacity = "0";
+      document.body.appendChild(area); area.select();
+      try { document.execCommand("copy"); listo(); } catch (err) {}
+      document.body.removeChild(area);
+    }
+  });
+})();
+</script>
+{% endblock %}

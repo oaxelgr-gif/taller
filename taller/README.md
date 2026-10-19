@@ -91,11 +91,26 @@ python run.py
 Escucha en `0.0.0.0:5000`. En el equipo servidor abre <http://localhost:5000>.
 Atajo: `./iniciar.sh` (macOS/Linux) o `iniciar.bat` (Windows) hacen los pasos 1 y 7 automáticamente.
 
+## Instalación en Windows (computadora servidor del taller)
+
+Para dejar una PC con Windows 10/11 (64 bits, desde 4 GB de RAM) como servidor del taller:
+
+1. En la PC de desarrollo: `python despliegue_windows/construir_zip.py` → genera `dist/SGT-Taller-Windows-AAAA-MM-DD.zip`.
+2. En la PC del taller: extraer el ZIP y ejecutar **`INSTALAR_O_ACTUALIZAR.bat`** (pide permisos de administrador).
+
+El instalador (`despliegue_windows/instalador/instalar.ps1`) deja todo en `C:\SGT-Taller` sin Docker:
+Python 3.12 portátil, PostgreSQL 16 como servicio (puerto 5433, sólo local, memoria ajustada), librerías,
+`.env` con claves aleatorias, base de datos y administrador, regla de firewall para la red local,
+equipo sin suspensión con corriente, ícono **SGT Taller** en el escritorio con el logo y arranque automático al iniciar Windows.
+El servidor es `waitress` (`windows/servidor.py`), corre sin ventana y hace un respaldo diario con `pg_dump` (conserva 30).
+Para actualizar se ejecuta el mismo `.bat` con un ZIP nuevo: conserva datos, fotos y `.env`, y respalda antes de cambiar nada.
+
 ## Acceso desde otros dispositivos (PCs, tablets, celulares)
 
 1. Conecta todos los dispositivos a la misma red WiFi/Ethernet del taller.
 2. Averigua la IP del equipo servidor: `ipconfig` (Windows), `ipconfig getifaddr en0` (macOS) o `hostname -I` (Linux). Ej.: `192.168.1.50`.
 3. Desde cualquier dispositivo abre `http://192.168.1.50:5000`.
+   En el sistema, el menú **Conectar dispositivos** muestra la dirección correcta y un **código QR** (con cartel imprimible).
 4. Si no conecta, permite el puerto **5000** en el firewall del servidor (Windows: *Firewall de Windows Defender → Reglas de entrada → Nueva regla → Puerto 5000*).
 5. Recomendado: asigna una **IP fija** (o reserva DHCP en el router) al equipo servidor para que la dirección no cambie.
 
@@ -116,6 +131,7 @@ La fecha que ubica a una orden dentro de un periodo es la de **finalización** (
 ```
 taller_mecanico/
 ├── run.py · config.py · schema.sql · requirements.txt · .env.example
+├── uploads/      (fotos de anomalías, privadas) · tests/ (pytest)
 ├── iniciar.sh · iniciar.bat · scripts/crear_base_datos.sql
 └── app/
     ├── __init__.py   (fábrica Flask, filtros Jinja, errores)   models.py   services.py (comisiones/KPIs)
@@ -131,6 +147,10 @@ taller_mecanico/
 - **Respaldos:** `pg_dump -U taller_user -h localhost taller_mecanico > respaldo_$(date +%F).sql` (prográmalo a diario). Restaurar: `psql -U taller_user -d taller_mecanico -f respaldo.sql`.
 - **Zona horaria:** variable `APP_TIMEZONE` (por defecto `America/Mexico_City`). En Windows es necesario el paquete `tzdata` (incluido en `requirements.txt`).
 - **HTTPS:** si lo pones detrás de HTTPS, define `SESSION_COOKIE_SECURE=1`.
+- **Fotos de anomalías:** se guardan en la carpeta `uploads/` (fuera de `static/`) y sólo se muestran a usuarios con sesión iniciada. Inclúyela en tus respaldos junto con el `pg_dump`. Con Docker se monta como volumen, así que no se pierde al reconstruir el contenedor.
+- **Comisiones:** se calculan sólo sobre mano de obra (servicios); las piezas no generan comisión. La misma regla aplica en el corte, el dashboard, el panel del mecánico y el reporte financiero (`services.base_comision`).
+- **Docker, primer arranque:** `SECRET_KEY` es obligatoria en `.env` (la app no arranca sin ella). Si la base está vacía se crea sólo el usuario `admin` con la contraseña de `ADMIN_PASSWORD`, o una temporal que aparece en `docker compose logs web`. Los datos de demostración se cargan únicamente con `CARGAR_DEMO=1`. PostgreSQL sólo escucha en `127.0.0.1` (no en la red del taller).
+- **Pruebas:** `pip install pytest && pytest -q` ejecuta las pruebas de la regla de comisiones (`tests/`).
 
 ## Solución de problemas
 

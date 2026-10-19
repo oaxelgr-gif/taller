@@ -5,8 +5,9 @@
 <div class="login-wrap">
   <div class="login-card glass-strong">
     <div class="text-center mb-4">
-      <div class="brand-logo-img mb-3">
-        <img src="{{ url_for('static', filename='img/logo.jpg') }}" alt="Logo {{ TALLER_NOMBRE }}" class="img-fluid rounded-circle shadow-lg" style="width: 84px; height: 84px; object-fit: cover; border: 2px solid var(--glass-border-strong);">
+      <div class="brand-logo-img mb-3 d-flex justify-content-center">
+        <img src="{{ url_for('static', filename='img/logo_blanco.png') }}" alt="Logo {{ TALLER_NOMBRE }}" class="img-fluid rounded-circle shadow-lg logo-theme-dark" style="width: 96px; height: 96px; object-fit: contain; padding: 6px; border: 2.5px solid var(--glass-border-strong); background: rgba(255,255,255,0.04);">
+        <img src="{{ url_for('static', filename='img/logo_negro.png') }}" alt="Logo {{ TALLER_NOMBRE }}" class="img-fluid rounded-circle shadow-lg logo-theme-light" style="width: 96px; height: 96px; object-fit: contain; padding: 6px; border: 2.5px solid var(--glass-border-strong); background: rgba(255,255,255,0.5);">
       </div>
       <h1 class="h3 mb-1">{{ TALLER_NOMBRE }}</h1>
       <p class="text-muted mb-0">Ingresa tu usuario y contraseña para continuar</p>

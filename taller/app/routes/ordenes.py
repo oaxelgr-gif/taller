@@ -399,8 +399,8 @@ def quitar_servicio(id_orden, id_detalle):
         detalle = db.session.get(DetalleOrdenServicio, id_detalle)
         if detalle is None or detalle.id_orden != orden.id_orden:
             raise ValueError("Servicio no encontrado en la orden.")
-        if orden.es_cobrable and len(orden.detalles) <= 1:
-            raise ValueError("Una orden completada debe conservar al menos un servicio.")
+        if orden.es_cobrable and len(orden.detalles) + len(orden.piezas) <= 1:
+            raise ValueError("Una orden completada debe conservar al menos un servicio o una pieza.")
         db.session.delete(detalle)
         db.session.flush()
         db.session.expire(orden, ["detalles"])
@@ -504,6 +504,8 @@ def quitar_pieza(id_orden, id_pieza):
         pieza = db.session.get(DetalleOrdenPieza, id_pieza)
         if pieza is None or pieza.id_orden != orden.id_orden:
             raise ValueError("Pieza no encontrada en la orden.")
+        if orden.es_cobrable and len(orden.detalles) + len(orden.piezas) <= 1:
+            raise ValueError("Una orden completada debe conservar al menos un servicio o una pieza.")
         db.session.delete(pieza)
         db.session.flush()
         db.session.expire(orden, ["piezas"])

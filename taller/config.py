@@ -40,6 +40,11 @@ class Config:
 
     APP_TIMEZONE = os.getenv("APP_TIMEZONE", "America/Mexico_City")
     TALLER_NOMBRE = os.getenv("TALLER_NOMBRE", "Taller Mecánico")
+    # IP del equipo servidor en la red local. Sólo hace falta en Docker, donde el
+    # contenedor no ve la IP real del equipo (iniciar.sh la detecta y la pasa).
+    IP_SERVIDOR = os.getenv("IP_SERVIDOR", "").strip()
+    # Puerto con el que se entra desde la red (en Docker puede ser distinto al interno 5000).
+    PUERTO_PUBLICO = os.getenv("PUERTO_PUBLICO", "").strip()
 
     # Sesión / seguridad
     PERMANENT_SESSION_LIFETIME = timedelta(hours=12)
@@ -55,5 +60,6 @@ class Config:
     # Reglas de negocio
     COMISION_DEFECTO = 15.00
     MAX_CONTENT_LENGTH = 16 * 1024 * 1024  # 16 MB para permitir fotos de cámaras móviles
-    UPLOAD_FOLDER = os.path.join(BASE_DIR, "app", "static", "uploads")
+    # Fuera de /static: las fotos sólo se sirven a usuarios con sesión (ruta clientes.foto_vehiculo)
+    UPLOAD_FOLDER = os.getenv("UPLOAD_FOLDER", os.path.join(BASE_DIR, "uploads"))
     ALLOWED_IMAGE_EXTENSIONS = {"jpg", "jpeg", "png", "webp"}
